@@ -227,4 +227,25 @@ describe("loadFleet's topics", () => {
       ["add-dark-mode", null, "idle"],
     ]);
   });
+
+  it("never turns the first mate into an item's agent, even when a backlog line names it", async () => {
+    const MATE = "3f2a9c1e-5b7d-4e8a-9c0f-1a2b3c4d5e6f";
+    const home = await mkdtemp(join(tmpdir(), "fm-fleet-"));
+    await mkdir(join(home, "data"));
+    await writeFile(join(home, "data", "backlog.md"), `## In flight\n- [ ] fix-flaky-login - Fix the login (agent: ${MATE})\n`);
+    const mate = { id: MATE, title: "First mate", status: "idle", cwd: home, updatedAt: "t1", archivedAt: null, labels: {}, pendingPermissions: [] };
+    const paseo = {
+      agents: {
+        async list() {
+          return { entries: [], pageInfo: { nextCursor: null, hasMore: false } };
+        },
+        ref: () => ({ async refresh() { return { agent: mate }; } }),
+      },
+      config: { async get() { return { config: { mcp: { injectIntoAgents: true } } }; } },
+    } as unknown as PaseoApi;
+
+    const fleet = await loadFleet(paseo, FirstmateConfigSchema.parse({ home, mateAgentId: MATE }), new ReportCache());
+
+    expect(fleet.cards.map((card) => [card.taskId, card.agent])).toEqual([["fix-flaky-login", null]]);
+  });
 });

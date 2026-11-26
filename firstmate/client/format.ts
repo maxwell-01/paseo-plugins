@@ -2,6 +2,7 @@ import type { PluginTheme } from "@getpaseo/plugin";
 
 import {
   COLUMN_IDS,
+  CREW_LABELS,
   type AgentSummary,
   type ColumnId,
   type FleetCard,
@@ -354,4 +355,12 @@ export function errorText(caught: unknown): string {
     .replace(/\s+requestType=\S+(\s+code=\S+)?\s*$/, "")
     .trim();
   return clean === "" ? raw : clean;
+}
+
+/**
+ * Whether End and Relaunch are offered for this agent: only for one the first mate made as crew. A backlog
+ * item's own agent has no crew label, and the daemon refuses both for it.
+ */
+export function canEndOrRelaunch(agent: Pick<AgentSummary, "labels">): boolean {
+  return agent.labels[CREW_LABELS.role] === CREW_LABELS.crewRole;
 }
