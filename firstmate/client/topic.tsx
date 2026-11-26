@@ -8,13 +8,13 @@
  * not the chat's tail, so it still holds what was said last week.
  */
 import type { PluginTheme } from "@getpaseo/plugin";
-import { openExternalUrl, useRpc } from "@getpaseo/plugin/client";
+import { openExternalUrl } from "@getpaseo/plugin/client";
 import { useToast } from "@getpaseo/plugin/client/react-native";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 
-import { topicMessages, type FleetCard } from "../shared/fleet";
+import type { FleetCard } from "../shared/fleet";
 import { CrewCard } from "./card";
 import type { MateAsk } from "./card-answer";
 import { useFollowEnd } from "./follow-end";
@@ -22,6 +22,7 @@ import { Markdown } from "./markdown";
 import { ReplyBox } from "./reply-box";
 import { FONT_SIZE, lineHeightFor } from "./type-scale";
 import { CaptainBubble, IconButton, JumpToEnd, errorText } from "./ui";
+import { topicMessagesKey, useTopicMessages } from "./use-topic-messages";
 
 /** Below this width the card sits above the thread instead of beside it. */
 const SIDE_BY_SIDE_WIDTH = 680;
@@ -48,20 +49,13 @@ export function TopicView({
   onChanged: () => void;
   toMate: MateAsk | null;
 }) {
-  const load = useRpc(topicMessages);
   const toast = useToast();
   const queryClient = useQueryClient();
   const [width, setWidth] = useState(0);
   const sideBySide = !compact && width >= SIDE_BY_SIDE_WIDTH;
   const follow = useFollowEnd();
-  const queryKey = ["firstmate", "topic", topicId] as const;
-  const thread = useQuery({
-    queryKey,
-    queryFn: () => load({ topicId }),
-    refetchInterval: pollSeconds * 1000,
-    // The thread stays drawn while a re-read is on its way.
-    placeholderData: (previous) => previous,
-  });
+  const queryKey = topicMessagesKey(topicId);
+  const thread = useTopicMessages(topicId, pollSeconds);
   const messages = thread.data?.messages ?? [];
   const notes = card.backlog?.notes ?? [];
 
