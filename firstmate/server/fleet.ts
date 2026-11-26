@@ -25,7 +25,9 @@ import { resolveHome } from "./config";
 import { parseCrewReport, reportUrl } from "./crew-report";
 import { readCharterState } from "./charter-file";
 import { isHomeReady, readBacklog, readProjects, readSuggestions } from "./home";
+import type { TopicMessage } from "../shared/topics";
 import type { AgentListOptions, PaseoAgent, PaseoApi, TimelineItem } from "./host-types";
+import type { TopicLog } from "./topic-log";
 
 const PAGE_SIZE = 200;
 /** Enough of a timeline to reach back past a turn's last tool calls to its closing message. */
@@ -199,9 +201,14 @@ export interface CrewMember {
 /**
  * Crewmates and backlog items joined into cards. A crewmate is matched to its
  * item by the task label, or by the agent id the item recorded; whatever is
- * left over on either side is a card of its own.
+ * left over on either side is a card of its own. `latest` is the newest message filed under each backlog
+ * item, by its id.
  */
-export function buildCards(backlog: readonly BacklogItem[], crew: readonly CrewMember[]): FleetCard[] {
+export function buildCards(
+  backlog: readonly BacklogItem[],
+  crew: readonly CrewMember[],
+  latest: ReadonlyMap<string, TopicMessage> = new Map(),
+): FleetCard[] {
   const cards: FleetCard[] = [];
   const claimed = new Set<number>();
 
@@ -227,6 +234,7 @@ export function buildCards(backlog: readonly BacklogItem[], crew: readonly CrewM
       agent: member.agent,
       report: member.report,
       url: (member.report === null ? null : reportUrl(member.report.text)) ?? item?.url ?? null,
+      lastMessage: (item === null ? null : latest.get(item.id)) ?? null,
     });
   }
 
@@ -243,6 +251,7 @@ export function buildCards(backlog: readonly BacklogItem[], crew: readonly CrewM
       agent: null,
       report: null,
       url: item.url,
+      lastMessage: latest.get(item.id) ?? null,
     });
   });
   return cards;
@@ -272,11 +281,18 @@ function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** Files the first mate's conversation, when there is a first mate, and returns the newest message of each topic. */
+async function fileTopics(topics: TopicLog, paseo: PaseoApi, mate: PaseoAgent | null) {
+  if (mate !== null) await topics.sync(paseo, mate);
+  return topics.latest();
+}
+
 export async function loadFleet(
   paseo: PaseoApi,
   config: FirstmateConfig,
   reports: ReportCache,
   watchSummaries: () => Promise<WatchSummary[]> = async () => [],
+  topics: TopicLog | null = null,
 ): Promise<Fleet> {
   const home = resolveHome(config);
   const warnings: string[] = [];
@@ -311,6 +327,14 @@ export async function loadFleet(
     }),
   ]);
 
+  const latest =
+    topics === null
+      ? new Map<string, TopicMessage>()
+      : await fileTopics(topics, paseo, mate.agent).catch((error: unknown) => {
+          warnings.push(`The topics could not be filed: ${describe(error)}`);
+          return new Map<string, TopicMessage>();
+        });
+
   reports.retain(new Set(crewAgents.map((agent) => agent.id)));
   const crew = await Promise.all(
     crewAgents.map(async (agent) => ({
@@ -328,7 +352,7 @@ export async function loadFleet(
     mate: mate.agent === null ? null : summarizeAgent(mate.agent),
     mateMissing: mate.missing,
     mateInHome: mate.agent === null ? true : await sameDirectory(mate.agent.cwd, home),
-    cards: buildCards(backlog, crew),
+    cards: buildCards(backlog, crew, latest),
     projects,
     suggestions,
     watches,
