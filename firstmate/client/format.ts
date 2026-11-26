@@ -54,12 +54,13 @@ export function captainColumn(card: FleetCard): CaptainColumnId {
 }
 
 /**
- * What the board remembers an open card by: its task id, which a backlog card keeps for as long as the
- * item is on the line, or its agent's id when it has none. Never `card.key`: a backlog card's key holds
- * its line's index, which moves when the first mate edits the file above it.
+ * What the board remembers an open card by: its agent's id, or its task id when it has no agent. Never
+ * `card.key`, whose backlog form holds the line's index, which moves when the first mate edits the file above
+ * it. The agent comes first because two crewmates can share a task label, and a Done line can share its id
+ * with a live crewmate's card.
  */
 export function openId(card: FleetCard): string | null {
-  return card.taskId ?? card.agent?.id ?? null;
+  return card.agent?.id ?? card.taskId;
 }
 
 /**

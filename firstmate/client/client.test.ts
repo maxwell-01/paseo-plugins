@@ -58,7 +58,7 @@ import {
 import { CREW_LABELS, watchPath, type AgentSummary, type BacklogItem, type FleetCard, type WatchSummary } from "../shared/fleet";
 import { activeCrewCount } from "./screen";
 import { displaySettings } from "../shared/settings";
-import { transcriptRows, visibleRows, type TimelineEntry } from "./transcript-rows";
+import { chatRows, transcriptRows, visibleRows, type TimelineEntry } from "./transcript-rows";
 
 function entry(item: unknown, seq: number): TimelineEntry {
   return {
@@ -185,6 +185,17 @@ describe("the topic of a row", () => {
     ).toEqual([["event", null, "[topic: dark-mode] spoke."]]);
   });
 
+  it("joins a reply across reasoning and todo entries, as the daemon does", () => {
+    expect(
+      topicsOf([
+        entry({ type: "assistant_message", text: "[topic: a] part one" }, 1),
+        entry({ type: "reasoning", text: "hmm" }, 2),
+        entry({ type: "todo", items: [] }, 3),
+        entry({ type: "assistant_message", text: " and part two" }, 4),
+      ]),
+    ).toEqual([["mate", "a", "part one and part two"]]);
+  });
+
   it("keeps a message of attachments alone as a row once its tag is gone", () => {
     expect(topicsOf([entry({ type: "user_message", text: "[topic: dark-mode]" }, 1)])).toEqual([
       ["captain", "dark-mode", "(attachments)"],
@@ -210,6 +221,29 @@ describe("canEndOrRelaunch", () => {
     expect(canEndOrRelaunch(withLabels({ [CREW_LABELS.role]: CREW_LABELS.crewRole }))).toBe(true);
     expect(canEndOrRelaunch(withLabels({}))).toBe(false);
     expect(canEndOrRelaunch(withLabels({ [CREW_LABELS.role]: CREW_LABELS.mateRole }))).toBe(false);
+  });
+});
+
+describe("chatRows", () => {
+  const rows = transcriptRows([
+    entry({ type: "user_message", text: "[topic: dark-mode] Start it." }, 1),
+    entry({ type: "assistant_message", text: "[topic: fix-flaky-login] Not yet." }, 2),
+    entry({ type: "tool_call", callId: "c", name: "Bash", detail: { type: "shell", command: "ls" }, status: "completed", error: null }, 3),
+    entry({ type: "assistant_message", text: "Plain." }, 4),
+  ]);
+
+  it("hides the rows of a topic that opens as a thread, and puts the tag back on the rest", () => {
+    expect(chatRows(rows, new Set(["dark-mode"])).map((row) => row.text)).toEqual([
+      "[topic: fix-flaky-login] Not yet.",
+      "$ ls",
+      "Plain.",
+    ]);
+    expect(chatRows(rows, new Set()).map((row) => row.text)).toEqual([
+      "[topic: dark-mode] Start it.",
+      "[topic: fix-flaky-login] Not yet.",
+      "$ ls",
+      "Plain.",
+    ]);
   });
 });
 
@@ -1292,9 +1326,9 @@ describe("a card's actions and answer", () => {
 });
 
 describe("opening a card", () => {
-  it("names a card by its task id, and by its agent's id when it has none", () => {
+  it("names a card by its agent's id, and by its task id when it has none", () => {
     expect(openId({ ...crewCard("backlog:3", null), taskId: "fix-flaky-login" })).toBe("fix-flaky-login");
-    expect(openId({ ...crewCard("a1", { id: "a1" }), taskId: "fix-flaky-login" })).toBe("fix-flaky-login");
+    expect(openId({ ...crewCard("a1", { id: "a1" }), taskId: "fix-flaky-login" })).toBe("a1");
     expect(openId(crewCard("a1", { id: "a1" }))).toBe("a1");
     expect(openId(crewCard("empty", null))).toBeNull();
   });

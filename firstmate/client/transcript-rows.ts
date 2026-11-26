@@ -11,7 +11,7 @@
 import type { usePaseo } from "@getpaseo/plugin/client";
 
 import { classifyUserMessage, clip, type ChatSource } from "../shared/chat-messages";
-import { splitTopicTag } from "../shared/topics";
+import { ATTACHMENTS_ONLY, endsReply, splitTopicTag, topicTag } from "../shared/topics";
 
 type PaseoApi = ReturnType<typeof usePaseo>;
 export type TimelinePage = Awaited<ReturnType<ReturnType<PaseoApi["agents"]["ref"]>["timeline"]["refetch"]>>;
@@ -61,8 +61,6 @@ export function toolDisplayName(name: string): string {
   return name.replace(/^mcp__[^_]+__/, "").replace(/_/g, " ");
 }
 
-/** What the chat says of a captain message that has no words. */
-const ATTACHMENTS_ONLY = "(attachments)";
 const COMPACTING = "Compacting context…";
 
 /**
@@ -100,9 +98,12 @@ export function rowKey(entry: TimelineEntry): string {
  */
 export function transcriptRows(entries: readonly TimelineEntry[]): TranscriptRow[] {
   const rows: RowBody[] = [];
+  /** A reply is open until an entry that `endsReply` comes; reasoning and plans do not end it. */
+  let replying = false;
   entries.forEach((entry) => {
     const key = rowKey(entry);
     const item = entry.item;
+    if (endsReply(item.type)) replying = false;
     switch (item.type) {
       case "user_message": {
         const injected = classifyUserMessage(item.text, item.clientMessageId);
@@ -117,8 +118,9 @@ export function transcriptRows(entries: readonly TimelineEntry[]): TranscriptRow
       }
       case "assistant_message": {
         const last = rows[rows.length - 1];
-        if (last !== undefined && last.kind === "mate") last.text += item.text;
+        if (replying && last !== undefined && last.kind === "mate") last.text += item.text;
         else rows.push({ key, kind: "mate", text: item.text });
+        replying = true;
         break;
       }
       case "tool_call":
@@ -175,5 +177,18 @@ export function visibleRows(rows: readonly TranscriptRow[], hidden: readonly str
     if (row.kind === "tool") return !hidden.includes("tool");
     if (row.kind === "event") return !hidden.includes(row.source);
     return true;
+  });
+}
+
+/**
+ * The rows of the general chat. A row filed under a topic that opens as a thread (`threads`) is left to
+ * the thread; any other tagged row — an item with an agent, a mistyped id, an item no longer on the board —
+ * stays, with its tag put back so the captain sees what it was about.
+ */
+export function chatRows(rows: readonly TranscriptRow[], threads: ReadonlySet<string>): TranscriptRow[] {
+  return rows.flatMap((row) => {
+    if (row.topicId === null) return [row];
+    if (threads.has(row.topicId)) return [];
+    return [{ ...row, text: `${topicTag(row.topicId)} ${row.text}` }];
   });
 }

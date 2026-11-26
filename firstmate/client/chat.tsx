@@ -32,7 +32,7 @@ import { MateControls } from "./mate-controls";
 import { useMateSender } from "./mate-send";
 import { Markdown } from "./markdown";
 import { PermissionCard, usePendingRequests } from "./permission-card";
-import { transcriptRows, visibleRows, type TranscriptRow } from "./transcript-rows";
+import { chatRows, transcriptRows, visibleRows, type TranscriptRow } from "./transcript-rows";
 import { CaptainBubble, IconButton, JumpToEnd, MONOSPACE, Spinner, errorText } from "./ui";
 import { useKeyboardOverlap } from "./keyboard";
 import { useAgentTimeline } from "./use-timeline";
@@ -100,6 +100,7 @@ export function MateChat({
   theme,
   compact,
   hiddenKinds,
+  threads,
   onChanged,
   onOpenFile,
 }: {
@@ -108,6 +109,8 @@ export function MateChat({
   compact: boolean;
   /** Kinds of row to leave out — `hiddenChatKinds` in the display settings. */
   hiddenKinds: readonly string[];
+  /** Topics that open as a thread on the board; their messages are drawn there, not here. */
+  threads: ReadonlySet<string>;
   /** After a compact or a restart, so the board catches up without waiting for its poll. */
   onChanged: () => void;
   /** Opens a home file in the Files view, the same way a watch's name does. */
@@ -119,8 +122,8 @@ export function MateChat({
   const { sending, send, command: sendMateCommand } = useMateSender(mate.id);
   const timeline = useAgentTimeline(mate.id, `${mate.updatedAt}:${mate.pendingPermissions}`);
   const rows = useMemo(
-    () => visibleRows(transcriptRows(timeline.entries), hiddenKinds).filter((row) => row.topicId === null),
-    [timeline.entries, hiddenKinds],
+    () => chatRows(visibleRows(transcriptRows(timeline.entries), hiddenKinds), threads),
+    [timeline.entries, hiddenKinds, threads],
   );
   const groups = useMemo(() => groupRows(rows), [rows]);
   const files = useHomeFileLinks(rows);

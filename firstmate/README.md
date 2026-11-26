@@ -153,10 +153,12 @@ Every card can be opened. A card with a worker opens **Watch**; one without open
 messages you and the first mate exchanged about that backlog item, with the card beside it (above it on
 a phone). The box under the thread says who gets what you type. A message to the first mate goes out as
 `[topic: <id>] …`, the first mate starts its reply with the same tag, and the board files both under the
-card. They do not appear in the chat, which keeps only general conversation. On a phone, sending from a
-card keeps you on it.
+card. They do not appear in the chat, which keeps only general conversation. A tagged message about an item
+that has its own worker, or that is no longer on the board, stays in the chat with its tag. A worker's card
+has the same box under its transcript, and sends to the worker directly. On a phone, sending from a card
+keeps you on it.
 
-A card with no status line shows the last message of its thread, and a dot beside its title means the
+A card with no status line shows the last message of its thread, or what its worker last said, and a dot beside its title means the
 first mate has written something you have not opened yet. Messages are kept by the plugin on the
 daemon, the newest 200 per item. Messages from before the tag existed are not filed.
 

@@ -19,6 +19,9 @@ export const TopicMessageSchema = z.object({
 });
 export type TopicMessage = z.infer<typeof TopicMessageSchema>;
 
+/** What a captain message of attachments alone says, in the chat and in a thread. */
+export const ATTACHMENTS_ONLY = "(attachments)";
+
 /** The tag a message starts with to be filed under backlog item `id`. */
 export function topicTag(id: string): string {
   return `[topic: ${id}]`;
@@ -40,6 +43,14 @@ export interface FilingItem {
   clientMessageId?: string;
   seqStart: number;
   timestamp: string;
+}
+
+/**
+ * Whether a timeline entry ends a reply: the kinds the chat draws a row for. Any other entry — reasoning, a
+ * plan — is skipped, and the reply continues across it, so the chat and the daemon cut a reply in the same place.
+ */
+export function endsReply(type: string): boolean {
+  return ["user_message", "tool_call", "error", "notification", "compaction"].includes(type);
 }
 
 /**
@@ -68,12 +79,14 @@ export function fileTopicMessages(items: readonly FilingItem[]): { topicId: stri
       else reply.text += item.text ?? "";
       continue;
     }
+    if (!endsReply(item.type)) continue;
     endReply();
     if (item.type !== "user_message") continue;
     const text = item.text ?? "";
     const tagged = classifyUserMessage(text, item.clientMessageId) === null ? splitTopicTag(text) : null;
     if (tagged !== null) {
-      filed.push({ topicId: tagged.topicId, message: { seq: item.seqStart, from: "captain", text: tagged.text, at: item.timestamp } });
+      const words = tagged.text.trim() === "" ? ATTACHMENTS_ONLY : tagged.text;
+      filed.push({ topicId: tagged.topicId, message: { seq: item.seqStart, from: "captain", text: words, at: item.timestamp } });
     }
   }
   endReply();

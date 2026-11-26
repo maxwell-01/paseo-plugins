@@ -300,9 +300,22 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
   }
   const toMate: MateAsk = { sending: mateSender.sending, send: tellMate };
 
+  /** The topics a card opens as a thread: an item on the board with no agent of its own. */
+  const threads = useMemo(
+    () =>
+      new Set(
+        (data?.cards ?? []).flatMap((card) => (card.agent === null && card.backlog !== null ? [card.backlog.id] : [])),
+      ),
+    [data],
+  );
   const openCard = watching === null ? null : data?.cards.find((card) => openId(card) === watching) ?? null;
-  const openTopic = openCard?.backlog?.id;
+  /** Set only while the thread itself is on screen: an open agent shows its transcript, not the thread. */
+  const openTopic = openCard?.agent === null ? openCard.backlog?.id : undefined;
   const openLastSeq = openCard?.lastMessage?.seq;
+  // A card that has left the board closes its view, rather than showing a task id as an agent's.
+  useEffect(() => {
+    if (data !== null && watching !== null && openCard === null) setWatching(null);
+  }, [data, watching, openCard]);
   /** Opening a topic reads it, and so does each newer message that arrives while it stays open. */
   useEffect(() => {
     if (display.status !== "ready" || openTopic === undefined || openLastSeq === undefined) return;
@@ -566,19 +579,20 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
       theme={theme}
       compact={compact}
       hiddenKinds={values.hiddenChatKinds}
+      threads={threads}
       onChanged={refresh}
       onOpenFile={openFile}
     />
   );
-  const topic = openCard?.agent === null ? openCard.backlog?.id : undefined;
+  const openAgentId = openCard?.agent?.id ?? null;
   const crew =
-    watching === null ? (
+    watching === null || openCard === null ? (
       board
-    ) : openCard !== null && topic !== undefined ? (
+    ) : openTopic !== undefined ? (
       <TopicView
         key={watching}
         card={openCard}
-        topicId={topic}
+        topicId={openTopic}
         theme={theme}
         compact={compact}
         pollSeconds={values.pollSeconds}
@@ -586,15 +600,17 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
         onChanged={refresh}
         toMate={toMate}
       />
+    ) : openAgentId === null ? (
+      board
     ) : (
       <CrewmateView
         key={watching}
-        agentId={openCard?.agent?.id ?? watching}
+        agentId={openAgentId}
         card={openCard}
         theme={theme}
         compact={compact}
         onBack={() => setWatching(null)}
-        onOpen={navigation === undefined ? null : () => navigation.openAgent({ agentId: openCard?.agent?.id ?? watching })}
+        onOpen={navigation === undefined ? null : () => navigation.openAgent({ agentId: openAgentId })}
         onChanged={refresh}
         toMate={toMate}
       />

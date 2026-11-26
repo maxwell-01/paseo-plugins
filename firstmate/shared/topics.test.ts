@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { fileTopicMessages, splitTopicTag, topicTag, type FilingItem } from "./topics";
+import { ATTACHMENTS_ONLY, fileTopicMessages, splitTopicTag, topicTag, type FilingItem } from "./topics";
 
 describe("topic tags", () => {
   it("writes and reads a tag only at the very start", () => {
@@ -51,6 +51,28 @@ describe("fileTopicMessages", () => {
       ["add-dark-mode", "captain", 9, "and now?"],
       ["add-dark-mode", "mate", 10, "Dark."],
     ]);
+  });
+
+  it("joins a reply across the entries the chat draws no row for, and ends it at the ones it does", () => {
+    seq = 0;
+    expect(
+      summary([
+        item("assistant_message", "[topic: a] part one"),
+        item("reasoning", "hmm"),
+        item("todo", "plan"),
+        item("assistant_message", " and part two"),
+        item("tool_call", ""),
+        item("assistant_message", "[topic: a] after"),
+      ]),
+    ).toEqual([
+      ["a", "mate", 1, "part one and part two"],
+      ["a", "mate", 6, "after"],
+    ]);
+  });
+
+  it("files a captain message of a tag alone as a message of attachments", () => {
+    seq = 0;
+    expect(summary([item("user_message", "[topic: a]")])).toEqual([["a", "captain", 1, ATTACHMENTS_ONLY]]);
   });
 
   it("does not file a captain's pasted watch block as injected, only a watch message with the plugin's id", () => {
