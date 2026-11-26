@@ -68,6 +68,12 @@ compile time. This file covers only what is specific to `firstmate`.
 | `client/mate-send.ts`         | Sending to the first mate — Send, Bearings, Ahoy, a suggestion — one message at a time.    |
 | `client/crewmate.tsx`         | Watch: one crewmate's card beside its live transcript, in the board's place.               |
 | `client/topic.tsx`            | Open: a card with no agent, beside the daemon's thread of messages filed under its item.   |
+| `client/topics-screen.tsx`    | The Topics screen: the board, an open topic and the general chat, behind one header.       |
+| `client/topics-sidebar.tsx`   | The sidebar's Topics row and its count of topics that wait on the captain.                |
+| `client/topics-board.tsx`, `topic-card.tsx` | The four columns across the screen, and one topic's card with its answer buttons. |
+| `client/topic-detail.tsx`     | An open topic: its thread, the reply box, and the panel of its details.                    |
+| `client/thread-bubble.tsx`    | One message of a thread: who said it, over a bubble.                                       |
+| `client/topic-format.ts`      | What a topic card says, who a topic talks to, the Done column's cut, an agent's conversation as a thread. Pure. |
 | `client/reply-box.tsx`        | The box under a thread or a transcript: who gets it, the text, Send; the draft kept on `globalThis`. |
 | `client/reply-target.ts`      | Who a reply goes to, what it says above the box, the tagged text, the draft's slot. Pure.  |
 | `client/activity-rows.ts`     | Timeline entries → Watch rows, machinery kept: reasoning, tool detail, the latest plan. Pure. |
@@ -855,6 +861,40 @@ header counts follow the board's column layout (`headerCounts`).
 
 **A card's action buttons stay untagged.** Their prompts and the Answer box's `<id> — <title>: …` are a
 contract with the charter and bb's FirstMate, so they are not filed. Only the reply box tags.
+
+## The Topics screen
+
+A second screen over the same fleet query, built for the captain rather than for running the crew. It
+shares everything it can with the FirstMate screen (`useFleet`, `captainColumn`, `ReplyBox`, `MateChat`,
+the topic log) and adds only how a topic is drawn.
+
+**A topic's thread is two sources merged by time** (`threadMessages`): the messages the first mate's
+conversation filed under the item, from the topic log, and, for a card with its own agent, that agent's
+timeline reduced by `transcriptRows` to the captain's words and the agent's replies. Tool calls,
+reasoning and injected notes are left out; Paseo wraps a prompt one agent sends another, the first mate's
+brief included, so `classifyUserMessage` drops it and a user message that is left is the captain's. The
+agent's messages are never stored: they are read live, 150 entries of tail, so an old exchange with a
+long-running agent scrolls out of the thread and stays in Paseo.
+
+**Every topic has a thread here**, so `TopicsScreen` passes the chat the id of every backlog item on the
+board, and the general chat leaves all of their tagged rows out. The FirstMate screen's chat still keeps
+the rows of a card with an agent, as described under *Topics*.
+
+**Unread goes by the last message for every card** (`topicUnread`), keyed by `readKey` (the task id, else
+the agent's id) in the same `topicsRead` document. A card with an agent and a status line has no last
+message (`buildCards`), and falls back to the agent's `requiresAttention`. The screen saves a read mark
+itself, once per mark, because it has no other layout to batch it with.
+
+**An answer button tags its prompt** (`mateReplyText`) on this screen, so the captain's answer shows in
+the topic's thread. On the FirstMate board the same button sends the prompt bare; see the last paragraph
+of *Topics*.
+
+**A finished line is Done wherever it sits.** `parseBacklog` files a ticked item under done, and
+`captainColumn` sends any item whose outcome says it landed there (not `failed` or `abandoned`), because a first mate often leaves a merged line
+under *In flight* for a while. The Done column draws `DONE_SHOWN` cards, newest outcome first.
+
+**On a phone** the board is one list without Done, and an open topic shows either its thread or its
+details, switched from the header.
 
 ## What was left out
 
