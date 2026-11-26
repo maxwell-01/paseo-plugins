@@ -43,6 +43,7 @@ import { CrewmateView } from "./crewmate";
 import {
   agentStatusLabel,
   agentStatusTone,
+  findOpenCard,
   headerCounts,
   openId,
   orderedColumns,
@@ -68,6 +69,8 @@ let cachedTab: Tab = "chat";
 let cachedRightPane: "board" | "files" = "board";
 /** The card shown in the board's place, by `openId`: its thread, or its crewmate's transcript. */
 let cachedWatching: string | null = null;
+/** The open card's task id when it was opened, to find it again once an agent changes its `openId`. */
+let cachedWatchingTask: string | null = null;
 
 /**
  * A surface is given no way to open a settings screen, so the entry lends it
@@ -120,6 +123,7 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
   const [tab, setTabState] = useState<Tab>(cachedTab);
   const [rightPane, setRightPaneState] = useState(cachedRightPane);
   const [watching, setWatchingState] = useState(cachedWatching);
+  const [watchingTask, setWatchingTaskState] = useState(cachedWatchingTask);
   const [enabling, setEnabling] = useState(false);
   const [charterBusy, setCharterBusy] = useState(false);
   /** A file the Files view should open; not kept across a remount, or it would open again on return. */
@@ -206,8 +210,11 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
   }
 
   function setWatching(next: string | null): void {
+    const task = next === null ? null : (data?.cards.find((card) => openId(card) === next)?.taskId ?? watchingTask);
     cachedWatching = next;
+    cachedWatchingTask = task;
     setWatchingState(next);
+    setWatchingTaskState(task);
   }
 
   const order = orderedColumns(values.columnOrder);
@@ -308,20 +315,25 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
       ),
     [data],
   );
-  const openCard = watching === null ? null : data?.cards.find((card) => openId(card) === watching) ?? null;
+  const openCard = watching === null ? null : findOpenCard(data?.cards ?? [], watching, watchingTask);
   /** Set only while the thread itself is on screen: an open agent shows its transcript, not the thread. */
   const openTopic = openCard?.agent === null ? openCard.backlog?.id : undefined;
-  const openLastSeq = openCard?.lastMessage?.seq;
+  const openLastAt = openCard?.lastMessage?.at;
+  // A thread whose line gained an agent is now that agent's card: follow it to its new id.
+  useEffect(() => {
+    const now = openCard === null ? null : openId(openCard);
+    if (now !== null && now !== watching) setWatching(now);
+  }, [openCard, watching]);
   // A card that has left the board closes its view, rather than showing a task id as an agent's.
   useEffect(() => {
     if (data !== null && watching !== null && openCard === null) setWatching(null);
   }, [data, watching, openCard]);
   /** Opening a topic reads it, and so does each newer message that arrives while it stays open. */
   useEffect(() => {
-    if (display.status !== "ready" || openTopic === undefined || openLastSeq === undefined) return;
-    const next = readPatch(values.topicsRead, openTopic, openLastSeq);
+    if (display.status !== "ready" || openTopic === undefined || openLastAt === undefined) return;
+    const next = readPatch(values.topicsRead, openTopic, openLastAt);
     if (next !== null) save({ topicsRead: next });
-  }, [display.status, openTopic, openLastSeq, values.topicsRead]);
+  }, [display.status, openTopic, openLastAt, values.topicsRead]);
 
   /**
    * A suggestion's trash: the daemon records it as dismissed and its line leaves the first mate's file,

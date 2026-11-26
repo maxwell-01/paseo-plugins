@@ -8,8 +8,12 @@ import { z } from "zod";
 import { classifyUserMessage } from "./chat-messages";
 
 export const TopicMessageSchema = z.object({
-  /** Where the message starts in the first mate's timeline; a streaming reply keeps its seq as it grows. */
-  seq: z.number(),
+  /**
+   * `<agent id>:<seqStart>`: the agent whose timeline the message is from, and where it starts there. A
+   * streaming reply keeps its id as it grows, and no two agents' messages can share one. Messages are
+   * ordered by `at`, never by this.
+   */
+  id: z.string(),
   /** "agent" is the closing words of a card's own agent, read from its timeline; the topic log never stores it. */
   from: z.enum(["captain", "mate", "agent"]),
   /** The words, without the topic tag. */
@@ -60,7 +64,11 @@ export function endsReply(type: string): boolean {
  * inheritance from an earlier message: Paseo never records its own notes in the timeline, so an untagged
  * reply may be to one the timeline does not show.
  */
-export function fileTopicMessages(items: readonly FilingItem[]): { topicId: string; message: TopicMessage }[] {
+export function fileTopicMessages(
+  items: readonly FilingItem[],
+  mateId: string,
+): { topicId: string; message: TopicMessage }[] {
+  const idOf = (seqStart: number) => `${mateId}:${seqStart}`;
   const filed: { topicId: string; message: TopicMessage }[] = [];
   let reply: { text: string; seq: number; at: string } | null = null;
 
@@ -68,7 +76,7 @@ export function fileTopicMessages(items: readonly FilingItem[]): { topicId: stri
     if (reply === null) return;
     const tagged = splitTopicTag(reply.text);
     if (tagged !== null && tagged.text.trim() !== "") {
-      filed.push({ topicId: tagged.topicId, message: { seq: reply.seq, from: "mate", text: tagged.text, at: reply.at } });
+      filed.push({ topicId: tagged.topicId, message: { id: idOf(reply.seq), from: "mate", text: tagged.text, at: reply.at } });
     }
     reply = null;
   }
@@ -86,7 +94,7 @@ export function fileTopicMessages(items: readonly FilingItem[]): { topicId: stri
     const tagged = classifyUserMessage(text, item.clientMessageId) === null ? splitTopicTag(text) : null;
     if (tagged !== null) {
       const words = tagged.text.trim() === "" ? ATTACHMENTS_ONLY : tagged.text;
-      filed.push({ topicId: tagged.topicId, message: { seq: item.seqStart, from: "captain", text: words, at: item.timestamp } });
+      filed.push({ topicId: tagged.topicId, message: { id: idOf(item.seqStart), from: "captain", text: words, at: item.timestamp } });
     }
   }
   endReply();

@@ -822,24 +822,30 @@ an agent opens its transcript, not the thread, so opening it does not mark its t
 
 **Threads are kept on the daemon** (`server/topic-log.ts`, `topics.json` in the plugin's data folder)
 because the chat reads only the last 150 entries of a timeline that holds thousands. A thread built
-from that tail would lose a message within the hour. The log upserts by `seq` and never deletes on a
-re-read, and keeps the newest 200 per topic.
+from that tail would lose a message within the hour. The log upserts by message id and never deletes on a
+re-read, keeps each topic ordered by time and keeps the newest 200.
 
-**The `seq` offset.** A message's `seq` is where its timeline entry starts, and every first mate's
-timeline counts from zero. The log keeps an offset per first-mate id (`seqOffsets`) and adds it before
-storing, so a restarted or replaced first mate's seqs continue above the old ones, and one adopted again
-is read back at its old offset instead of being filed twice. Seqs in a thread therefore only grow, and
-`isUnread` (`client/format.ts`) can compare a topic's newest seq with the recorded one directly.
+**A message is identified by its first mate and its seq, and ordered by time.** Its `id` is
+`<agent id>:<seqStart>`, the agent whose timeline it is from and where it starts there, so a streaming reply
+keeps its id as it grows and two first mates' messages never collide, whichever of them is adopted again.
+A seq counts from zero in every agent and is never compared across agents: order, and "newest", always go
+by `at`.
 
-**Unread state is a settings document** (`topicsRead` in `shared/settings.ts`) because the client writes
-it, the daemon has no use for it, and every device the captain uses should agree on what is read. Opening
-a thread, and each newer message while it is open, saves the topic's newest seq through the surface's
-batched `save`.
+**Unread state is a settings document** (`topicsRead` in `shared/settings.ts`, topic id to the `at` of the
+newest message read) because the client writes it, the daemon has no use for it, and every device the
+captain uses should agree on what is read. Opening a thread, and each newer message while it is open, saves
+that time through the surface's batched `save`.
 
-**A card's last message** is the newer of two things: the newest message filed under its item, and, for a
-card with no status line, what its agent last said (`from: "agent"`, read with the status line by
-`ReportCache` and never stored in the topic log). A card is unread by a first-mate message past the
-recorded seq, or by its agent's `requiresAttention`; an agent's words never make a dot on their own.
+**An open view is found again when its card changes.** The board remembers an open card by its `openId`
+(its agent's id, else its task id) and its task id beside it. When a thread's backlog line gains an
+`(agent: …)`, the card's `openId` changes; `findOpenCard` then finds it by the task id, and the view becomes
+that agent's. The view closes only when neither is on the board.
+
+**A card's last message** is the newer by `at` of two things: the newest message filed under its item, and,
+for a card with no status line, what its agent last said (`from: "agent"`, read with the status line by
+`ReportCache` and never stored in the topic log). A card with no agent is unread by a first-mate message
+newer than the one read; a card with an agent is unread by its `requiresAttention` alone, since it opens a
+transcript that never shows the thread.
 
 **The reply box has two destinations.** A card with an agent steers it directly; the thread and the
 transcript show a reply box instead of the held card's Answer box (`hideAnswer`), since two boxes sending

@@ -27,18 +27,11 @@ export const MAX_TOPIC_MESSAGES = 200;
 const TAIL_ENTRIES = 300;
 
 const TopicFileSchema = z.object({
-  /** The first mate the stored messages were read from. */
-  mateAgentId: z.string(),
-  /**
-   * Added to each first mate's seqs so they cannot overwrite another's: a seq counts from zero in every
-   * agent. Kept per agent, so a first mate adopted again is read back at its old offset, not filed twice.
-   */
-  seqOffsets: z.record(z.string(), z.number()),
   topics: z.record(z.string(), z.array(TopicMessageSchema)),
 });
 type TopicFile = z.infer<typeof TopicFileSchema>;
 
-const EMPTY: TopicFile = { mateAgentId: "", seqOffsets: {}, topics: {} };
+const EMPTY: TopicFile = { topics: {} };
 
 function topicsFile(): string {
   return dataPath("topics.json");
@@ -74,16 +67,14 @@ function filingItem(entry: TimelineEntry): FilingItem {
   return base;
 }
 
-/** `kept` with `incoming` upserted by seq, oldest first, the newest `MAX_TOPIC_MESSAGES` of them. */
+/**
+ * `kept` with `incoming` upserted by id, ordered by `at` (ISO times compare as strings; a tie keeps the
+ * order they arrived in), the newest `MAX_TOPIC_MESSAGES` of them.
+ */
 export function mergeTopicMessages(kept: readonly TopicMessage[], incoming: readonly TopicMessage[]): TopicMessage[] {
-  const bySeq = new Map(kept.map((message) => [message.seq, message]));
-  incoming.forEach((message) => bySeq.set(message.seq, message));
-  return [...bySeq.values()].sort((a, b) => a.seq - b.seq).slice(-MAX_TOPIC_MESSAGES);
-}
-
-/** The next free seq above everything kept. */
-function seqAbove(topics: TopicFile["topics"]): number {
-  return Math.max(-1, ...Object.values(topics).flatMap((messages) => messages.map((message) => message.seq))) + 1;
+  const byId = new Map(kept.map((message) => [message.id, message]));
+  incoming.forEach((message) => byId.set(message.id, message));
+  return [...byId.values()].sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0)).slice(-MAX_TOPIC_MESSAGES);
 }
 
 export class TopicLog {
@@ -100,14 +91,11 @@ export class TopicLog {
         .ref(mate.id)
         .timeline.refetch({ direction: "tail", limit: TAIL_ENTRIES, projection: "projected" });
       const file = await readTopicFile();
-      const known = file.seqOffsets[mate.id];
-      const seqOffset = known ?? (Object.keys(file.seqOffsets).length === 0 ? 0 : seqAbove(file.topics));
       const topics = { ...file.topics };
-      const filed = fileTopicMessages(page.entries.map(filingItem));
-      for (const { topicId, message } of filed) {
-        topics[topicId] = mergeTopicMessages(topics[topicId] ?? [], [{ ...message, seq: message.seq + seqOffset }]);
+      for (const { topicId, message } of fileTopicMessages(page.entries.map(filingItem), mate.id)) {
+        topics[topicId] = mergeTopicMessages(topics[topicId] ?? [], [message]);
       }
-      await writeTopicFile({ mateAgentId: mate.id, seqOffsets: { ...file.seqOffsets, [mate.id]: seqOffset }, topics });
+      await writeTopicFile({ topics });
       this.synced = { agentId: mate.id, updatedAt: mate.updatedAt };
     });
   }

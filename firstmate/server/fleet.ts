@@ -135,14 +135,15 @@ function closingRun(items: readonly TimelineItem[]): { start: number; text: stri
   return text.trim() === "" ? null : { start, text };
 }
 
-/** `closingText` as a message from the agent: the seq and time of the entry it starts at. */
+/** `closingText` as a message from agent `agentId`, identified and dated by the entry it starts at. */
 export function closingMessage(
+  agentId: string,
   entries: readonly { item: TimelineItem; seqStart: number; timestamp: string }[],
 ): TopicMessage | null {
   const run = closingRun(entries.map((entry) => entry.item));
   const first = run === null ? undefined : entries[run.start];
   if (run === null || first === undefined) return null;
-  return { seq: first.seqStart, from: "agent", text: run.text, at: first.timestamp };
+  return { id: `${agentId}:${first.seqStart}`, from: "agent", text: run.text, at: first.timestamp };
 }
 
 interface CachedReport {
@@ -169,7 +170,7 @@ export class ReportCache {
     const page = await paseo.agents
       .ref(agent.id)
       .timeline.refetch({ direction: "tail", limit: REPORT_TAIL, projection: "projected" });
-    const closing = closingMessage(page.entries);
+    const closing = closingMessage(agent.id, page.entries);
     const report = parseCrewReport(closing?.text ?? null);
     this.reports.set(agent.id, { updatedAt: agent.updatedAt, report, closing });
     return report;

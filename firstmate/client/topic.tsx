@@ -150,9 +150,9 @@ export function TopicView({
               ) : (
                 messages.map((message) =>
                   message.from === "captain" ? (
-                    <CaptainBubble key={message.seq} theme={theme} text={message.text} />
+                    <CaptainBubble key={message.id} theme={theme} text={message.text} />
                   ) : (
-                    <View key={message.seq} style={{ alignSelf: "stretch" }}>
+                    <View key={message.id} style={{ alignSelf: "stretch" }}>
                       <Markdown source={message.text} theme={theme} onOpenLink={openLink} />
                     </View>
                   ),

@@ -74,7 +74,7 @@ interface BoardProps {
   /** Opens a home file in the Files view: the tab on a phone, the right-hand pane on a wide layout. */
   onOpenFile: (path: string) => void;
   /** The newest first-mate message the captain has had open, by topic id; an unread dot is judged against it. */
-  topicsRead: Readonly<Record<string, number>>;
+  topicsRead: Readonly<Record<string, string>>;
   /** Shows a card's thread, or its crewmate's transcript, in place of the board; `id` is `openId`'s. */
   onOpen: (id: string) => void;
   onToggleColumn: (id: string) => void;
