@@ -1422,8 +1422,8 @@ describe("the reply box", () => {
   });
 
   it("says who gets the message", () => {
-    expect(replyLabel({ kind: "agent", agentId: "a1", title: "Login fixer" })).toBe("To Login fixer, directly");
-    expect(replyLabel({ kind: "mate", topicId: "dark-mode" })).toBe("To the first mate, filed under dark-mode");
+    expect(replyLabel({ kind: "agent", agentId: "a1", title: "Login fixer" })).toBe("Sends to Login fixer");
+    expect(replyLabel({ kind: "mate", topicId: "dark-mode" })).toBe("Sends to the first mate, tagged [topic: dark-mode]");
   });
 
   it("tags what goes to the first mate, and keeps drafts apart from every other box", () => {

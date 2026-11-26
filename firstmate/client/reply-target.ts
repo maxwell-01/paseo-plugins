@@ -17,7 +17,7 @@ export function replyTarget(card: FleetCard): ReplyTarget | null {
 
 /** The line above the box that says who gets the message. */
 export function replyLabel(target: ReplyTarget): string {
-  return target.kind === "agent" ? `To ${target.title}, directly` : `To the first mate, filed under ${target.topicId}`;
+  return target.kind === "agent" ? `Sends to ${target.title}` : `Sends to the first mate, tagged ${topicTag(target.topicId)}`;
 }
 
 /** What goes to the first mate for a reply on topic `topicId`. */
