@@ -5,6 +5,7 @@ import { captainColumn } from "./format";
 import { needsYouCount } from "./screen";
 import {
   DONE_SHOWN,
+  doneRecently,
   shortDate,
   shownDone,
   talkingTo,
@@ -159,6 +160,28 @@ describe("the Done column", () => {
     expect(older).toBe(2);
   });
 
+  it("shows as many more as the captain asked for", () => {
+    const done = Array.from({ length: 25 }, (_, index) =>
+      card({ key: `d${index}`, column: "done", backlog: item({ section: "done", id: `d${index}` }) }),
+    );
+    expect(shownDone(done, 20)).toMatchObject({ older: 5 });
+    expect(shownDone(done, 20).shown).toHaveLength(20);
+    expect(shownDone(done, 30)).toMatchObject({ older: 0 });
+  });
+
+  it("counts what finished in the last days, by the date of the outcome", () => {
+    const finished = (outcome: string | null) => card({ column: "done", backlog: item({ section: "done", outcome }) });
+    const cards = [finished("merged 2026-09-21"), finished("done 2026-09-15"), finished("merged 2026-09-14"), finished(null), card()];
+    expect(doneRecently(cards, new Date(2026, 8, 21, 18))).toBe(2);
+  });
+
+  it("counts the seven days by the captain's own calendar, not the UTC one", () => {
+    const finished = card({ column: "done", backlog: item({ section: "done", outcome: "merged 2026-09-15" }) });
+    // Late on the 21st where the captain is, whatever the UTC day: the 15th is six days back.
+    expect(doneRecently([finished], new Date(2026, 8, 21, 23, 30))).toBe(1);
+    expect(doneRecently([finished], new Date(2026, 8, 22, 0, 30))).toBe(0);
+  });
+
   it("keeps the file's order for topics with no dated outcome", () => {
     const done = ["a", "b"].map((key) => card({ key, column: "done", backlog: item({ section: "done", id: key }) }));
     expect(shownDone(done).shown.map((each) => each.key)).toEqual(["a", "b"]);
@@ -172,7 +195,7 @@ describe("who a topic talks to", () => {
   });
 });
 
-describe("the Topics badge", () => {
+describe("the sidebar row's badge", () => {
   it("counts the topics that wait on the captain", () => {
     expect(needsYouCount([card({ backlog: item({ hold: "A or B?" }) }), card(), card({ column: "failed" })])).toBe(2);
   });

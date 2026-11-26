@@ -18,7 +18,7 @@
  */
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 
 import { COLUMN_IDS, type ColumnId, type FleetCard, type Suggestion, type WatchSummary } from "../shared/fleet";
@@ -43,7 +43,9 @@ import {
 } from "./format";
 import { SUGGESTIONS_ICON, SUGGESTIONS_TITLE, SuggestionList } from "./suggestions";
 import { WATCHES_ICON, WATCHES_TITLE, WatchList } from "./watches";
+import { DONE_SHOWN, shownDone } from "./topic-format";
 import { FONT_SIZE } from "./type-scale";
+import { ShowMore } from "./ui";
 
 const COLLAPSED_WIDTH = 40;
 
@@ -86,6 +88,7 @@ interface BoardProps {
 export function Board(props: BoardProps) {
   const { cards, columns, order, collapsed, theme, compact, suggestions, watches } = props;
   const captain = columns === "captain";
+  const [doneLimit, setDoneLimit] = useState(DONE_SHOWN);
   const groups: ReadonlyMap<string, FleetCard[]> = useMemo(
     () => (captain ? groupCaptainCards(cards) : groupCards(cards)),
     [captain, cards],
@@ -204,6 +207,20 @@ export function Board(props: BoardProps) {
     );
   }
 
+  /** A column's cards; Done draws its newest and offers the rest, since it only ever grows. */
+  function renderColumn(id: string, entries: readonly FleetCard[]) {
+    if (id !== "done") return renderCards(entries);
+    const { shown: newest, older } = shownDone(entries, doneLimit);
+    return (
+      <>
+        {renderCards(newest)}
+        {older === 0 ? null : (
+          <ShowMore theme={theme} count={Math.min(DONE_SHOWN, older)} onPress={() => setDoneLimit(doneLimit + DONE_SHOWN)} />
+        )}
+      </>
+    );
+  }
+
   function renderCards(entries: readonly FleetCard[]) {
     return entries.map((card) => {
       const id = openId(card);
@@ -257,7 +274,7 @@ export function Board(props: BoardProps) {
           return (
             <View key={id} style={styles.columnStacked}>
               {renderHeader(id, folded, entries.length)}
-              {folded ? null : <View style={styles.body}>{renderCards(entries)}</View>}
+              {folded ? null : <View style={styles.body}>{renderColumn(id, entries)}</View>}
             </View>
           );
         })}
@@ -318,7 +335,7 @@ export function Board(props: BoardProps) {
                     {columnMeta(id).title}
                   </Text>
                 ) : (
-                  <ScrollView contentContainerStyle={styles.body}>{renderCards(entries)}</ScrollView>
+                  <ScrollView contentContainerStyle={styles.body}>{renderColumn(id, entries)}</ScrollView>
                 )}
               </View>
             );

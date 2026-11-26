@@ -37,7 +37,6 @@ import {
 import { displaySettings, type DisplaySettings } from "../shared/settings";
 import { Board } from "./board";
 import { FilesView, type FilesRequest } from "./files";
-import { MateChat } from "./chat";
 import { captainMessage } from "./attachments";
 import { CrewmateView } from "./crewmate";
 import {
@@ -56,6 +55,8 @@ import { useMateSender } from "./mate-send";
 import type { MateAsk } from "./card-answer";
 import { ResizeHandle, clampShare } from "./resize-handle";
 import { TopicView } from "./topic";
+import { doneRecently } from "./topic-format";
+import { TopicsMain, type OpenTopic, type TopicsView } from "./topics-main";
 import { SuggestionList } from "./suggestions";
 import { Banner, Chip, IconButton, Segmented, errorText } from "./ui";
 import { FONT_SIZE } from "./type-scale";
@@ -65,6 +66,9 @@ export const FLEET_QUERY_KEY = ["firstmate", "fleet"] as const;
 let cachedFleet: Fleet | null = null;
 type Tab = "chat" | "suggestions" | "board" | "files";
 let cachedTab: Tab = "chat";
+/** What the main pane shows: the board of topics, or the general chat. */
+let cachedMainView: TopicsView = "board";
+let cachedMainTopic: OpenTopic | null = null;
 /** What the right-hand pane shows on a wide layout: the crew, or the home's files. */
 let cachedRightPane: "board" | "files" = "board";
 /** The card shown in the board's place, by `openId`: its thread, or its crewmate's transcript. */
@@ -84,6 +88,8 @@ export function bindSettingsOpener(opener: ((id: string) => void) | null): void 
 
 const DEFAULT_DISPLAY: DisplaySettings = displaySettings.schema.parse({});
 const SAVE_DELAY_MS = 400;
+/** A main pane narrower than this cannot hold four readable columns, so its board is one list. */
+const NARROW_MAIN_WIDTH = 760;
 
 /**
  * The fleet query, shared by the screen, the workspace panels and the sidebar item so they poll once
@@ -104,7 +110,7 @@ export function useFleet(pollSeconds: number) {
   });
 }
 
-export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
+export function FleetSurface({ theme, layout, navigation, host }: PluginScreenProps) {
   const compact = layout.compact;
   const enable = useRpc(enableAgentTools);
   const compareCharters = useRpc(compareCharter);
@@ -121,6 +127,8 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
   const [share, setShare] = useState<number | null>(null);
   const [width, setWidth] = useState(0);
   const [tab, setTabState] = useState<Tab>(cachedTab);
+  const [mainView, setMainViewState] = useState(cachedMainView);
+  const [mainTopic, setMainTopicState] = useState(cachedMainTopic);
   const [rightPane, setRightPaneState] = useState(cachedRightPane);
   const [watching, setWatchingState] = useState(cachedWatching);
   const [watchingTask, setWatchingTaskState] = useState(cachedWatchingTask);
@@ -202,6 +210,17 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
     setTabState(next);
   }
 
+  function setMainTopic(next: OpenTopic | null): void {
+    cachedMainTopic = next;
+    setMainTopicState(next);
+  }
+
+  function setMainView(next: TopicsView): void {
+    cachedMainView = next;
+    setMainViewState(next);
+    setMainTopic(null);
+  }
+
   function setRightPane(next: "board" | "files"): void {
     // Choosing Crew while it is already showing is the way back from a watched crewmate to the board.
     if (next === "board" && rightPane === "board") setWatching(null);
@@ -218,7 +237,10 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
   }
 
   const order = orderedColumns(values.columnOrder);
-  const counts = useMemo(() => headerCounts(data?.cards ?? [], values.boardColumns), [data, values.boardColumns]);
+  const counts = useMemo(
+    () => headerCounts(data?.cards ?? [], doneRecently(data?.cards ?? [])),
+    [data],
+  );
 
   const styles = useMemo(() => {
     const { colors } = theme;
@@ -301,20 +323,17 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
   function tellMate(text: string, onFailure?: () => void, onSent?: () => void, options?: { keepTab?: boolean }): boolean {
     if (mate === null || !mateSender.send(captainMessage(text, []), onFailure, onSent)) return false;
     if (options?.keepTab === true) return true;
+    setMainView("general");
     if (compact) setTab("chat");
     else if (values.chatCollapsed) save({ chatCollapsed: false });
     return true;
   }
   const toMate: MateAsk = { sending: mateSender.sending, send: tellMate };
-
-  /** The topics a card opens as a thread: an item on the board with no agent of its own. */
-  const threads = useMemo(
-    () =>
-      new Set(
-        (data?.cards ?? []).flatMap((card) => (card.agent === null && card.backlog !== null ? [card.backlog.id] : [])),
-      ),
-    [data],
-  );
+  /** The main pane's own sends, which leave the captain on the topic they were written on. */
+  const fromMain: MateAsk = {
+    sending: mateSender.sending,
+    send: (text, onFailure, onSent) => tellMate(text, onFailure, onSent, { keepTab: true }),
+  };
   const openCard = watching === null ? null : findOpenCard(data?.cards ?? [], watching, watchingTask);
   /** Set only while the thread itself is on screen: an open agent shows its transcript, not the thread. */
   const openTopic = openCard?.agent === null ? openCard.backlog?.id : undefined;
@@ -443,8 +462,8 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
     );
   }
   // The question itself is in the chat; the banner is for when the chat is
-  // out of sight — folded away, or behind the Crew tab on a phone.
-  const chatHidden = compact ? shownTab !== "chat" : values.chatCollapsed;
+  // out of sight — behind the board or a topic, folded away, or behind the Crew tab on a phone.
+  const chatHidden = mainView !== "general" || mainTopic !== null || (compact ? shownTab !== "chat" : values.chatCollapsed);
   if (mate !== null && mate.pendingPermissions > 0 && chatHidden) {
     banners.push(
       <Banner
@@ -455,7 +474,11 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
         action={{
           label: "Show",
           icon: "MessageSquare",
-          onPress: () => (compact ? setTab("chat") : save({ chatCollapsed: false })),
+          onPress: () => {
+            setMainView("general");
+            if (compact) setTab("chat");
+            else if (values.chatCollapsed) save({ chatCollapsed: false });
+          },
         }}
       />,
     );
@@ -502,13 +525,13 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
           <>
             <IconButton
               icon={values.chatCollapsed ? "PanelLeftOpen" : "PanelLeftClose"}
-              label={values.chatCollapsed ? "Show the chat" : "Hide the chat"}
+              label={values.chatCollapsed ? "Show the topics and chat" : "Hide the topics and chat"}
               theme={theme}
               onPress={() => save({ chatCollapsed: !values.chatCollapsed, boardCollapsed: false })}
             />
             <IconButton
               icon={values.boardCollapsed ? "PanelRightOpen" : "PanelRightClose"}
-              label={values.boardCollapsed ? "Show the board" : "Hide the board"}
+              label={values.boardCollapsed ? "Show the crew panel" : "Hide the crew panel"}
               theme={theme}
               onPress={() => save({ boardCollapsed: !values.boardCollapsed, chatCollapsed: false })}
             />
@@ -584,16 +607,27 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
       onReorder={(next: ColumnId[]) => save({ columnOrder: next })}
     />
   );
-  const chat = (
-    <MateChat
-      key={mate.id}
+  const mainWidth = values.boardCollapsed ? width : Math.round(clampShare(share ?? values.chatWidthFraction) * width);
+  const main = (
+    <TopicsMain
+      fleet={data}
       mate={mate}
       theme={theme}
       compact={compact}
-      hiddenKinds={values.hiddenChatKinds}
-      threads={threads}
-      onChanged={refresh}
+      narrow={compact || (mainWidth > 0 && mainWidth < NARROW_MAIN_WIDTH)}
+      hostLabel={host.label}
+      view={mainView}
+      onView={setMainView}
+      open={mainTopic}
+      onOpen={setMainTopic}
+      pollSeconds={values.pollSeconds}
+      hiddenChatKinds={values.hiddenChatKinds}
+      topicsRead={display.status === "ready" ? values.topicsRead : null}
+      onRead={(topicsRead) => save({ topicsRead })}
+      toMate={fromMain}
+      onOpenAgent={navigation === undefined ? null : (agentId) => navigation.openAgent({ agentId })}
       onOpenFile={openFile}
+      onChanged={refresh}
     />
   );
   const openAgentId = openCard?.agent?.id ?? null;
@@ -658,7 +692,7 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
         </View>
         <View style={{ flex: 1, minHeight: 0 }}>
           {shownTab === "chat" ? (
-            chat
+            main
           ) : shownTab === "suggestions" ? (
             <ScrollView contentContainerStyle={styles.suggestions}>
               <SuggestionList
@@ -689,13 +723,13 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
           <View style={[styles.rail, { borderRightWidth: 1 }]}>
             <IconButton
               icon="PanelLeftOpen"
-              label="Show the chat"
+              label="Show the topics and chat"
               theme={theme}
               onPress={() => save({ chatCollapsed: false })}
             />
           </View>
         ) : (
-          <View style={values.boardCollapsed ? { flex: 1 } : { width: Math.round(chatShare * width) }}>{chat}</View>
+          <View style={values.boardCollapsed ? { flex: 1 } : { width: Math.round(chatShare * width) }}>{main}</View>
         )}
         {values.chatCollapsed || values.boardCollapsed ? null : (
           <ResizeHandle
@@ -713,7 +747,7 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
           <View style={[styles.rail, { borderLeftWidth: 1 }]}>
             <IconButton
               icon="PanelRightOpen"
-              label="Show the board"
+              label="Show the crew panel"
               theme={theme}
               onPress={() => save({ boardCollapsed: false })}
             />

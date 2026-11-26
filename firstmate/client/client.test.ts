@@ -57,7 +57,6 @@ import {
   watchTone,
 } from "./format";
 import { CREW_LABELS, watchPath, type AgentSummary, type BacklogItem, type FleetCard, type WatchSummary } from "../shared/fleet";
-import { activeCrewCount } from "./screen";
 import { displaySettings } from "../shared/settings";
 import { chatRows, transcriptRows, visibleRows, type TimelineEntry } from "./transcript-rows";
 
@@ -1182,25 +1181,6 @@ describe("the captain's columns", () => {
   });
 });
 
-describe("the sidebar row's badge", () => {
-  it("counts the live crewmates in the Working and Idle columns, and nothing else", () => {
-    expect(activeCrewCount([])).toBe(0);
-    const cards = [
-      crewCard("working", { status: "running" }, "working"),
-      crewCard("idle", { status: "idle" }, "idle"),
-      crewCard("reported-done", { status: "idle" }, "idle"),
-      crewCard("blocked", { status: "idle", pendingPermissions: 1 }, "blocked"),
-      crewCard("failed", { status: "error" }, "failed"),
-      crewCard("parked", { status: "idle" }, "parked"),
-      crewCard("landed", { status: "idle" }, "done"),
-      crewCard("queued", null, "queued"),
-      crewCard("backlog-only", null, "working"),
-      crewCard("closed", { status: "closed" }, "idle"),
-    ];
-    expect(activeCrewCount(cards)).toBe(3);
-  });
-});
-
 describe("a card's actions and answer", () => {
   function backlogCard(item: Partial<BacklogItem>): FleetCard {
     const backlog: BacklogItem = {
@@ -1461,8 +1441,8 @@ describe("the header's counts", () => {
     crewCard("c", null, "queued"),
   ];
 
-  it("count the seven columns' four headline ones, or the captain's four", () => {
-    expect(headerCounts(cards, "crew")).toEqual(["1 working", "1 blocked", "1 queued", "0 done"]);
-    expect(headerCounts(cards, "captain")).toEqual(["1 needs you", "1 working", "1 queued", "0 done"]);
+  it("are the board's first three columns, and what finished lately", () => {
+    expect(headerCounts(cards, 3)).toEqual(["1 needs you", "1 working", "1 queued", "3 done in 7 days"]);
+    expect(headerCounts([], 0)[0]).toBe("0 need you");
   });
 });

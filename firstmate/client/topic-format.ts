@@ -1,5 +1,5 @@
 /**
- * What the Topics screen says about a card: the lines a topic card draws, who the topic talks to, which
+ * What the board of topics says about a card: the lines a topic card draws, who the topic talks to, which
  * finished topics the Done column shows, and an agent's conversation as a thread. Pure.
  */
 import type { FleetCard } from "../shared/fleet";
@@ -57,16 +57,30 @@ export function topicLastLine(card: FleetCard): string | null {
   return blocker === null ? "Not started." : `Waits for ${blocker}.`;
 }
 
-/** How many finished topics the Done column draws before "older". */
+/** How many finished topics the Done column draws at first, and how many more each "Show more" adds. */
 export const DONE_SHOWN = 10;
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** A date as the backlog writes one: the day where the captain is, not the UTC day. */
+function localDate(when: Date): string {
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())}`;
+}
+
+/** How many topics finished in the last `days` days, by the date of their outcome: the header's figure for Done. */
+export function doneRecently(cards: readonly FleetCard[], now: Date = new Date(), days = 7): number {
+  const after = localDate(new Date(now.getTime() - days * DAY_MS));
+  return cards.filter((card) => captainColumn(card) === "done" && (outcomeDate(card) ?? "") > after).length;
+}
+
 /**
- * The Done column: the newest `DONE_SHOWN` finished topics and how many older ones it leaves out. Newest
+ * The Done column: the newest `limit` finished topics and how many older ones it leaves out. Newest
  * by the date of the outcome; topics without one keep the backlog's order, after the dated ones.
  */
-export function shownDone(done: readonly FleetCard[]): { shown: FleetCard[]; older: number } {
+export function shownDone(done: readonly FleetCard[], limit: number = DONE_SHOWN): { shown: FleetCard[]; older: number } {
   const sorted = [...done].sort((a, b) => (outcomeDate(b) ?? "").localeCompare(outcomeDate(a) ?? ""));
-  return { shown: sorted.slice(0, DONE_SHOWN), older: Math.max(0, sorted.length - DONE_SHOWN) };
+  return { shown: sorted.slice(0, limit), older: Math.max(0, sorted.length - limit) };
 }
 
 /** Who a message written on the topic reaches: its own agent, by title and the start of its id, or the first mate. */
@@ -75,7 +89,7 @@ export function talkingTo(card: FleetCard): string {
   return agent === null ? "First mate" : `${agent.title ?? "Agent"} (${agent.id.slice(0, 8)})`;
 }
 
-/** What the Topics screen remembers a topic's read mark by: its backlog id, or its agent's id when it has none. */
+/** What the board of topics remembers a topic's read mark by: its backlog id, or its agent's id when it has none. */
 export function readKey(card: FleetCard): string | null {
   return card.taskId ?? card.agent?.id ?? null;
 }
