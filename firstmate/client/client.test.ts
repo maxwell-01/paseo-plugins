@@ -1357,6 +1357,10 @@ describe("a card's last message and unread dot", () => {
   it("is unread whenever the card's agent wants the captain", () => {
     expect(isUnread(withLast("captain", 12, { requiresAttention: true }), { "fix-flaky-login": 99 })).toBe(true);
     expect(isUnread(crewCard("a1", { requiresAttention: true }), {})).toBe(true);
+  });
+
+  it("goes by the agent alone on a card that has one, whose thread nothing opens", () => {
+    expect(isUnread(withLast("mate", 12, { requiresAttention: false }), {})).toBe(false);
     expect(isUnread(crewCard("a1", { requiresAttention: false }), {})).toBe(false);
   });
 

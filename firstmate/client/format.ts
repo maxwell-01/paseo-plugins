@@ -65,10 +65,11 @@ export function openId(card: FleetCard): string | null {
 
 /**
  * Whether the captain has something to read on a card: the first mate spoke last and its message is newer
- * than the one the captain last had open (`read`, topic id to seq), or the card's agent is waiting on them.
+ * than the one the captain last had open (`read`, topic id to seq). A card with an agent goes by the agent
+ * alone, since it opens the agent's transcript and never the thread that would mark the topic read.
  */
 export function isUnread(card: FleetCard, read: Readonly<Record<string, number>>): boolean {
-  if (card.agent?.requiresAttention === true) return true;
+  if (card.agent !== null) return card.agent.requiresAttention === true;
   const last = card.lastMessage;
   const topicId = card.backlog?.id;
   if (last === null || last.from !== "mate" || topicId === undefined) return false;
