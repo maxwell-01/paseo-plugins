@@ -43,7 +43,7 @@ import { CrewmateView } from "./crewmate";
 import {
   agentStatusLabel,
   agentStatusTone,
-  groupCards,
+  headerCounts,
   openId,
   orderedColumns,
   readPatch,
@@ -211,15 +211,7 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
   }
 
   const order = orderedColumns(values.columnOrder);
-  const counts = useMemo(() => {
-    const groups = groupCards(data?.cards ?? []);
-    return {
-      working: groups.get("working")?.length ?? 0,
-      blocked: groups.get("blocked")?.length ?? 0,
-      queued: groups.get("queued")?.length ?? 0,
-      done: groups.get("done")?.length ?? 0,
-    };
-  }, [data]);
+  const counts = useMemo(() => headerCounts(data?.cards ?? [], values.boardColumns), [data, values.boardColumns]);
 
   const styles = useMemo(() => {
     const { colors } = theme;
@@ -513,13 +505,7 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
       </View>
       {data === null ? null : (
         <Text style={styles.meta} numberOfLines={1}>
-          {[
-            `${counts.working} working`,
-            `${counts.blocked} blocked`,
-            `${counts.queued} queued`,
-            `${counts.done} done`,
-            shortPath(data.home, compact ? 28 : 56),
-          ].join(" · ")}
+          {[...counts, shortPath(data.home, compact ? 28 : 56)].join(" · ")}
         </Text>
       )}
     </View>

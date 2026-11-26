@@ -10,7 +10,8 @@ import { classifyUserMessage } from "./chat-messages";
 export const TopicMessageSchema = z.object({
   /** Where the message starts in the first mate's timeline; a streaming reply keeps its seq as it grows. */
   seq: z.number(),
-  from: z.enum(["captain", "mate"]),
+  /** "agent" is the closing words of a card's own agent, read from its timeline; the topic log never stores it. */
+  from: z.enum(["captain", "mate", "agent"]),
   /** The words, without the topic tag. */
   text: z.string(),
   /** When the timeline recorded it. */

@@ -84,9 +84,25 @@ export function readPatch(
   return { ...read, [topicId]: seq };
 }
 
-/** A card's last message as one line: who said it, then the words with their line breaks folded away. */
-export function lastMessageLine(message: TopicMessage): string {
-  return `${message.from === "mate" ? "First mate" : "You"}: ${message.text.replace(/\s+/g, " ").trim()}`;
+/**
+ * A card's last message as one line: who said it, then the words with their line breaks folded away.
+ * `agentTitle` names the card's agent when it is the one that spoke.
+ */
+export function lastMessageLine(message: TopicMessage, agentTitle: string | null = null): string {
+  const who = message.from === "mate" ? "First mate" : message.from === "agent" ? agentTitle ?? "Agent" : "You";
+  return `${who}: ${message.text.replace(/\s+/g, " ").trim()}`;
+}
+
+/** The counts under the screen's title, by the column layout the board is drawn in. */
+export function headerCounts(cards: readonly FleetCard[], layout: "crew" | "captain"): string[] {
+  if (layout === "captain") {
+    const groups = groupCaptainCards(cards);
+    const count = (id: CaptainColumnId) => groups.get(id)?.length ?? 0;
+    return [`${count("needs-you")} needs you`, `${count("working")} working`, `${count("queued")} queued`, `${count("done")} done`];
+  }
+  const groups = groupCards(cards);
+  const count = (id: ColumnId) => groups.get(id)?.length ?? 0;
+  return [`${count("working")} working`, `${count("blocked")} blocked`, `${count("queued")} queued`, `${count("done")} done`];
 }
 
 export function captainTone(theme: PluginTheme, column: CaptainColumnId): string {

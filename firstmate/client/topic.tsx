@@ -81,7 +81,8 @@ export function TopicView({
       body: { flex: 1, minHeight: 0, paddingHorizontal: compact ? 10 : 12, paddingBottom: compact ? 10 : 12, gap: 10 },
       bodySide: { flexDirection: "row" as const },
       cardColumn: { width: CARD_COLUMN_WIDTH, flexGrow: 0, flexShrink: 0 },
-      cardStacked: { flexGrow: 0, maxHeight: "45%" as const },
+      // Its natural height, never squeezed by the thread; a tall one scrolls inside this share.
+      cardStacked: { flexGrow: 0, flexShrink: 0, maxHeight: "45%" as const },
       notes: { gap: 4, paddingTop: 8 },
       note: { color: colors.foregroundMuted, fontSize: FONT_SIZE.small, lineHeight: lineHeightFor(FONT_SIZE.small) },
       threadFrame: {
@@ -127,7 +128,7 @@ export function TopicView({
           // The answer box is in here; on iOS the system scrolls the focused one into view.
           automaticallyAdjustKeyboardInsets
         >
-          <CrewCard card={card} theme={theme} compact={compact} opener={null} onChanged={onChanged} toMate={toMate} startExpanded={!compact} />
+          <CrewCard card={card} theme={theme} compact={compact} opener={null} onChanged={onChanged} toMate={toMate} hideAnswer startExpanded={!compact} />
           {notes.length === 0 ? null : (
             <View style={styles.notes}>
               {notes.map((note, index) => (

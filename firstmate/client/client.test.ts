@@ -41,6 +41,7 @@ import {
   errorText,
   formatTokenCount,
   groupCaptainCards,
+  headerCounts,
   isUnread,
   lastMessageLine,
   moveColumn,
@@ -1337,6 +1338,13 @@ describe("a card's last message and unread dot", () => {
     expect(lastMessageLine({ seq: 1, from: "captain", text: "Go ahead.", at: "" })).toBe("You: Go ahead.");
   });
 
+  it("names the agent that spoke, or says Agent", () => {
+    const said = { seq: 1, from: "agent" as const, text: "Tests pass.", at: "" };
+    expect(lastMessageLine(said, "Login fixer")).toBe("Login fixer: Tests pass.");
+    expect(lastMessageLine(said, null)).toBe("Agent: Tests pass.");
+    expect(isUnread({ ...withLast("mate", 1), lastMessage: said }, {})).toBe(false);
+  });
+
   it("keeps the read map in the display settings, empty by default", () => {
     expect(displaySettings.schema.parse({}).topicsRead).toEqual({});
   });
@@ -1384,3 +1392,16 @@ function backlogItem(overrides: Partial<BacklogItem>): BacklogItem {
     ...overrides,
   };
 }
+
+describe("the header's counts", () => {
+  const cards = [
+    crewCard("a", { status: "running" }, "working"),
+    crewCard("b", { status: "idle" }, "blocked"),
+    crewCard("c", null, "queued"),
+  ];
+
+  it("count the seven columns' four headline ones, or the captain's four", () => {
+    expect(headerCounts(cards, "crew")).toEqual(["1 working", "1 blocked", "1 queued", "0 done"]);
+    expect(headerCounts(cards, "captain")).toEqual(["1 needs you", "1 working", "1 queued", "0 done"]);
+  });
+});

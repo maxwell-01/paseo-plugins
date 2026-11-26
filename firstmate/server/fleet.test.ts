@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { CREW_LABELS, FirstmateConfigSchema, type AgentSummary, type BacklogItem } from "../shared/fleet";
 import { parseBacklog } from "./backlog";
-import { ReportCache, backlogColumn, buildCards, closingText, crewColumn, loadFleet, ownAgentIds } from "./fleet";
+import { ReportCache, backlogColumn, buildCards, closingMessage, closingText, crewColumn, loadFleet, ownAgentIds } from "./fleet";
 import type { PaseoApi, TimelineItem } from "./host-types";
 import type { TopicLog } from "./topic-log";
 
@@ -136,6 +136,42 @@ describe("buildCards' last message", () => {
       ["next", "Queued behind login."],
       ["quiet", null],
     ]);
+  });
+});
+
+describe("buildCards' agent message", () => {
+  const backlog = parseBacklog("## In flight\n- [ ] fix-login - Fix the login (agent: a1)\n");
+  const closing = (at: string) => ({ seq: 9, from: "agent" as const, text: "Tests pass; waiting on you.", at });
+  const said = { seq: 4, from: "mate" as const, text: "Queued.", at: "2026-09-22T10:00:00.000Z" };
+  const lastOf = (member: { report: { state: "done"; text: string } | null; closing: ReturnType<typeof closing> | null }, latest = new Map<string, typeof said>()) =>
+    buildCards(backlog, [{ agent: agent(), ...member }], latest)[0]?.lastMessage ?? null;
+
+  it("gives a card with no status line what its agent last said", () => {
+    expect(lastOf({ report: null, closing: closing("2026-09-22T11:00:00.000Z") })?.from).toBe("agent");
+  });
+
+  it("leaves a card with a status line to the status line", () => {
+    expect(lastOf({ report: { state: "done", text: "PR" }, closing: closing("2026-09-22T11:00:00.000Z") })).toBeNull();
+  });
+
+  it("shows the newer of the agent's words and the first mate's", () => {
+    const latest = new Map([["fix-login", said]]);
+    expect(lastOf({ report: null, closing: closing("2026-09-22T11:00:00.000Z") }, latest)?.from).toBe("agent");
+    expect(lastOf({ report: null, closing: closing("2026-09-22T09:00:00.000Z") }, latest)?.from).toBe("mate");
+  });
+});
+
+describe("closingMessage", () => {
+  it("is the closing text with where it started and when", () => {
+    const entry = (seqStart: number, timestamp: string, item: unknown) => ({ seqStart, timestamp, item }) as never;
+    expect(
+      closingMessage([
+        entry(1, "2026-09-22T10:00:00.000Z", { type: "user_message", text: "go" }),
+        entry(2, "2026-09-22T10:01:00.000Z", { type: "assistant_message", text: "All " }),
+        entry(3, "2026-09-22T10:02:00.000Z", { type: "assistant_message", text: "green." }),
+      ]),
+    ).toEqual({ seq: 2, from: "agent", text: "All green.", at: "2026-09-22T10:01:00.000Z" });
+    expect(closingMessage([entry(1, "2026-09-22T10:00:00.000Z", { type: "user_message", text: "go" })])).toBeNull();
   });
 });
 
