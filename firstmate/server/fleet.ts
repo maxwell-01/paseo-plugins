@@ -325,7 +325,17 @@ export async function loadFleet(
       warnings.push(`The suggestions could not be read: ${describe(error)}`);
       return [];
     }),
-    resolveMate(paseo, config),
+    (async function mateWithTopics() {
+      const resolved = await resolveMate(paseo, config);
+      const latest =
+        topics === null
+          ? new Map<string, TopicMessage>()
+          : await fileTopics(topics, paseo, resolved.agent).catch((error: unknown) => {
+              warnings.push(`The topics could not be filed: ${describe(error)}`);
+              return new Map<string, TopicMessage>();
+            });
+      return { ...resolved, latest };
+    })(),
     listAgents(paseo, { labels: { [CREW_LABELS.role]: CREW_LABELS.crewRole } }).catch((error: unknown) => {
       warnings.push(`Paseo could not list the crew: ${describe(error)}`);
       return [];
@@ -340,14 +350,6 @@ export async function loadFleet(
       return [];
     }),
   ]);
-
-  const latest =
-    topics === null
-      ? new Map<string, TopicMessage>()
-      : await fileTopics(topics, paseo, mate.agent).catch((error: unknown) => {
-          warnings.push(`The topics could not be filed: ${describe(error)}`);
-          return new Map<string, TopicMessage>();
-        });
 
   const ownAgents = (
     await Promise.all(
@@ -378,7 +380,7 @@ export async function loadFleet(
     mate: mate.agent === null ? null : summarizeAgent(mate.agent),
     mateMissing: mate.missing,
     mateInHome: mate.agent === null ? true : await sameDirectory(mate.agent.cwd, home),
-    cards: buildCards(backlog, crew, latest),
+    cards: buildCards(backlog, crew, mate.latest),
     projects,
     suggestions,
     watches,

@@ -29,13 +29,16 @@ const TAIL_ENTRIES = 300;
 const TopicFileSchema = z.object({
   /** The first mate the stored messages were read from. */
   mateAgentId: z.string(),
-  /** Added to a new first mate's seqs so they cannot overwrite the old one's: a seq counts from zero in every agent. */
-  seqOffset: z.number(),
+  /**
+   * Added to each first mate's seqs so they cannot overwrite another's: a seq counts from zero in every
+   * agent. Kept per agent, so a first mate adopted again is read back at its old offset, not filed twice.
+   */
+  seqOffsets: z.record(z.string(), z.number()),
   topics: z.record(z.string(), z.array(TopicMessageSchema)),
 });
 type TopicFile = z.infer<typeof TopicFileSchema>;
 
-const EMPTY: TopicFile = { mateAgentId: "", seqOffset: 0, topics: {} };
+const EMPTY: TopicFile = { mateAgentId: "", seqOffsets: {}, topics: {} };
 
 function topicsFile(): string {
   return dataPath("topics.json");
@@ -97,14 +100,14 @@ export class TopicLog {
         .ref(mate.id)
         .timeline.refetch({ direction: "tail", limit: TAIL_ENTRIES, projection: "projected" });
       const file = await readTopicFile();
-      const changedMate = file.mateAgentId !== "" && file.mateAgentId !== mate.id;
-      const seqOffset = changedMate ? seqAbove(file.topics) : file.seqOffset;
+      const known = file.seqOffsets[mate.id];
+      const seqOffset = known ?? (Object.keys(file.seqOffsets).length === 0 ? 0 : seqAbove(file.topics));
       const topics = { ...file.topics };
       const filed = fileTopicMessages(page.entries.map(filingItem));
       for (const { topicId, message } of filed) {
         topics[topicId] = mergeTopicMessages(topics[topicId] ?? [], [{ ...message, seq: message.seq + seqOffset }]);
       }
-      await writeTopicFile({ mateAgentId: mate.id, seqOffset, topics });
+      await writeTopicFile({ mateAgentId: mate.id, seqOffsets: { ...file.seqOffsets, [mate.id]: seqOffset }, topics });
       this.synced = { agentId: mate.id, updatedAt: mate.updatedAt };
     });
   }

@@ -42,25 +42,21 @@ export interface FilingItem {
 }
 
 /**
- * The messages of a conversation that belong to a topic. A captain message with a tag sets the current
- * topic; one without a tag, or a message something else injected, clears it. Consecutive assistant
- * messages are joined first, since a streamed reply arrives in pieces; a joined reply that starts with a
- * tag is filed there and sets the current topic, any other reply takes the current topic. A reply with no
- * topic is not filed.
+ * The messages of a conversation that belong to a topic: a captain message that Paseo or another agent did
+ * not inject and that starts with a tag, and a first-mate reply that itself starts with one. Consecutive
+ * assistant messages are joined first, since a streamed reply arrives in pieces. Nothing is filed by
+ * inheritance from an earlier message: Paseo never records its own notes in the timeline, so an untagged
+ * reply may be to one the timeline does not show.
  */
 export function fileTopicMessages(items: readonly FilingItem[]): { topicId: string; message: TopicMessage }[] {
   const filed: { topicId: string; message: TopicMessage }[] = [];
-  let current: string | null = null;
   let reply: { text: string; seq: number; at: string } | null = null;
 
   function endReply(): void {
     if (reply === null) return;
     const tagged = splitTopicTag(reply.text);
-    const topicId = tagged?.topicId ?? current;
-    const text = tagged?.text ?? reply.text;
-    if (tagged !== null) current = tagged.topicId;
-    if (topicId !== null && text.trim() !== "") {
-      filed.push({ topicId, message: { seq: reply.seq, from: "mate", text, at: reply.at } });
+    if (tagged !== null && tagged.text.trim() !== "") {
+      filed.push({ topicId: tagged.topicId, message: { seq: reply.seq, from: "mate", text: tagged.text, at: reply.at } });
     }
     reply = null;
   }
@@ -75,7 +71,6 @@ export function fileTopicMessages(items: readonly FilingItem[]): { topicId: stri
     if (item.type !== "user_message") continue;
     const text = item.text ?? "";
     const tagged = classifyUserMessage(text, item.clientMessageId) === null ? splitTopicTag(text) : null;
-    current = tagged?.topicId ?? null;
     if (tagged !== null) {
       filed.push({ topicId: tagged.topicId, message: { seq: item.seqStart, from: "captain", text: tagged.text, at: item.timestamp } });
     }
