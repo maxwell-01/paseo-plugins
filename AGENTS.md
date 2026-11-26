@@ -62,6 +62,38 @@ paseo plugin logs skills          # load errors and stderr
   compiles and loads, nothing more; a human has to look at the panel. Check a wide window *and* a
   compact one, and switch theme — unstyled text and hardcoded colours only show up in one of them.
 
+## Test a plugin build
+
+Never try a build on the user's own Paseo: a reload or Update there can undo it, and a restart cuts
+off their running agents. `scripts/paseo-sandbox.sh` starts a second, throwaway Paseo from the
+installed Paseo app, with its own home (`/tmp/paseo-check`) and port (6799). The user's own daemon,
+agents, plugins and settings stay untouched.
+
+```bash
+(cd firstmate && npm ci && npm run typecheck)          # build the plugin first
+scripts/paseo-sandbox.sh up                            # prints http://127.0.0.1:6799/
+scripts/paseo-sandbox.sh install firstmate             # a folder, or a git or npm source
+scripts/paseo-sandbox.sh install https://github.com/maxwell-01/paseo-plugins.git:firstmate --ref <branch>
+scripts/paseo-sandbox.sh paseo plugin logs firstmate   # any paseo command, run against the sandbox
+scripts/paseo-sandbox.sh paseo plugin reload firstmate # after an edit
+scripts/paseo-sandbox.sh down                          # stop it and delete its home
+```
+
+To see the plugin's screens, open the printed URL in a browser. It is the Paseo web app, connected
+only to the sandbox. A workspace panel needs a workspace, so register a scratch git repository
+first: `scripts/paseo-sandbox.sh paseo project create <repo>`, then
+`scripts/paseo-sandbox.sh paseo workspace create --isolation local --path <repo> --title scratch`.
+An agent drives the page with its own browser tool. A fresh browser does not open a workspace
+from its URL, so click the workspace in the sidebar.
+
+The sandbox has every agent provider switched off and uses none of the user's logins. So it cannot
+test:
+
+- anything that needs an agent to run a turn: lifecycle hooks on a turn, tools given to agents, or
+  a first mate dispatching a crewmate (`firstmate/AGENTS.md`, *Checking it*, step 3);
+- usage readings (usage is off) and the relay (off: no phone, no other daemon through it);
+- the desktop app itself. You see the web app, which runs the same plugin client code.
+
 ## Plugin architecture
 
 Every plugin is the same shape. Each has up to two entries, one per runtime, and at least one is
@@ -343,12 +375,9 @@ imports moved, install the published package**, against a throwaway home so the 
 is untouched:
 
 ```bash
-mkdir -p /tmp/paseo-check
-printf '%s' '{"version":1,"daemon":{"listen":"127.0.0.1:6799"},"pluginsEnabled":true}' \
-  > /tmp/paseo-check/config.json
-paseo daemon run --home /tmp/paseo-check &          # never restart the real one
-paseo plugin install npm:@gpambrozio/paseo-<id> --home /tmp/paseo-check
-paseo plugin ls --home /tmp/paseo-check             # want: status running
+scripts/paseo-sandbox.sh up                                   # see "Test a plugin build"
+scripts/paseo-sandbox.sh install npm:@gpambrozio/paseo-<id>   # prints status: want running
+scripts/paseo-sandbox.sh down
 ```
 
 Every plugin here is installed from a *directory* pointing at a working clone, so installing one
