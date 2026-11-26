@@ -32,8 +32,8 @@ import { MateControls } from "./mate-controls";
 import { useMateSender } from "./mate-send";
 import { Markdown } from "./markdown";
 import { PermissionCard, usePendingRequests } from "./permission-card";
-import { transcriptRows, type TranscriptRow } from "./transcript-rows";
-import { IconButton, JumpToEnd, MONOSPACE, Spinner, errorText } from "./ui";
+import { chatRows, transcriptRows, visibleRows, type TranscriptRow } from "./transcript-rows";
+import { CaptainBubble, IconButton, JumpToEnd, MONOSPACE, Spinner, errorText } from "./ui";
 import { useKeyboardOverlap } from "./keyboard";
 import { useAgentTimeline } from "./use-timeline";
 import { canAttachFiles, pickFiles, receiveFiles, type OfferedFile } from "./web";
@@ -99,12 +99,18 @@ export function MateChat({
   mate,
   theme,
   compact,
+  hiddenKinds,
+  threads,
   onChanged,
   onOpenFile,
 }: {
   mate: AgentSummary;
   theme: PluginTheme;
   compact: boolean;
+  /** Kinds of row to leave out — `hiddenChatKinds` in the display settings. */
+  hiddenKinds: readonly string[];
+  /** Topics that open as a thread on the board; their messages are drawn there, not here. */
+  threads: ReadonlySet<string>;
   /** After a compact or a restart, so the board catches up without waiting for its poll. */
   onChanged: () => void;
   /** Opens a home file in the Files view, the same way a watch's name does. */
@@ -115,7 +121,10 @@ export function MateChat({
   /** Shared with the surface's suggestion buttons: one message on its way at a time — see `./mate-send`. */
   const { sending, send, command: sendMateCommand } = useMateSender(mate.id);
   const timeline = useAgentTimeline(mate.id, `${mate.updatedAt}:${mate.pendingPermissions}`);
-  const rows = useMemo(() => transcriptRows(timeline.entries), [timeline.entries]);
+  const rows = useMemo(
+    () => chatRows(visibleRows(transcriptRows(timeline.entries), hiddenKinds), threads),
+    [timeline.entries, hiddenKinds, threads],
+  );
   const groups = useMemo(() => groupRows(rows), [rows]);
   const files = useHomeFileLinks(rows);
   const follow = useFollowEnd();
@@ -226,15 +235,6 @@ export function MateChat({
       transcript: { flex: 1 },
       scroller: { flex: 1 },
       transcriptBody: { padding: compact ? 10 : 14, gap: 10 },
-      captain: {
-        alignSelf: "flex-end" as const,
-        maxWidth: "88%" as const,
-        backgroundColor: colors.surface2,
-        borderRadius: 10,
-        paddingHorizontal: 10,
-        paddingVertical: 7,
-      },
-      captainText: { color: colors.foreground, fontSize: FONT_SIZE.body, lineHeight: lineHeightFor(FONT_SIZE.body) },
       mate: { alignSelf: "stretch" as const },
       line: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6 },
       lineText: { flex: 1, color: colors.foregroundMuted, fontSize: FONT_SIZE.caption },
@@ -350,13 +350,7 @@ export function MateChat({
     const row = group.row;
     switch (row.kind) {
       case "captain":
-        return (
-          <View key={row.key} style={styles.captain}>
-            <Text selectable style={styles.captainText}>
-              {row.text}
-            </Text>
-          </View>
-        );
+        return <CaptainBubble key={row.key} theme={theme} text={row.text} />;
       case "mate":
         return (
           <View key={row.key} style={styles.mate}>

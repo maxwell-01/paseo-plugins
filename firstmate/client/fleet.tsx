@@ -13,7 +13,7 @@
  * Crew tab: they are looked at now and then, not acted on, so they get no tab.
  *
  * A surface is unmounted whenever the captain opens a workspace, so the last
- * fleet, the compact tab and the crewmate being watched live in module scope
+ * fleet, the compact tab and the card being opened live in module scope
  * and the board comes back drawn rather than empty.
  */
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
@@ -40,11 +40,22 @@ import { FilesView, type FilesRequest } from "./files";
 import { MateChat } from "./chat";
 import { captainMessage } from "./attachments";
 import { CrewmateView } from "./crewmate";
-import { agentStatusLabel, agentStatusTone, groupCards, orderedColumns, revealFilesPatch, shortPath } from "./format";
+import {
+  agentStatusLabel,
+  agentStatusTone,
+  findOpenCard,
+  headerCounts,
+  openId,
+  orderedColumns,
+  readPatch,
+  revealFilesPatch,
+  shortPath,
+} from "./format";
 import { LaunchPanel } from "./launch";
 import { useMateSender } from "./mate-send";
 import type { MateAsk } from "./card-answer";
 import { ResizeHandle, clampShare } from "./resize-handle";
+import { TopicView } from "./topic";
 import { SuggestionList } from "./suggestions";
 import { Banner, Chip, IconButton, Segmented, errorText } from "./ui";
 import { FONT_SIZE } from "./type-scale";
@@ -56,8 +67,10 @@ type Tab = "chat" | "suggestions" | "board" | "files";
 let cachedTab: Tab = "chat";
 /** What the right-hand pane shows on a wide layout: the crew, or the home's files. */
 let cachedRightPane: "board" | "files" = "board";
-/** The crewmate shown in the board's place — card and transcript — by agent id. */
+/** The card shown in the board's place, by `openId`: its thread, or its crewmate's transcript. */
 let cachedWatching: string | null = null;
+/** The open card's task id when it was opened, to find it again once an agent changes its `openId`. */
+let cachedWatchingTask: string | null = null;
 
 /**
  * A surface is given no way to open a settings screen, so the entry lends it
@@ -110,6 +123,7 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
   const [tab, setTabState] = useState<Tab>(cachedTab);
   const [rightPane, setRightPaneState] = useState(cachedRightPane);
   const [watching, setWatchingState] = useState(cachedWatching);
+  const [watchingTask, setWatchingTaskState] = useState(cachedWatchingTask);
   const [enabling, setEnabling] = useState(false);
   const [charterBusy, setCharterBusy] = useState(false);
   /** A file the Files view should open; not kept across a remount, or it would open again on return. */
@@ -196,20 +210,15 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
   }
 
   function setWatching(next: string | null): void {
+    const task = next === null ? null : (data?.cards.find((card) => openId(card) === next)?.taskId ?? watchingTask);
     cachedWatching = next;
+    cachedWatchingTask = task;
     setWatchingState(next);
+    setWatchingTaskState(task);
   }
 
   const order = orderedColumns(values.columnOrder);
-  const counts = useMemo(() => {
-    const groups = groupCards(data?.cards ?? []);
-    return {
-      working: groups.get("working")?.length ?? 0,
-      blocked: groups.get("blocked")?.length ?? 0,
-      queued: groups.get("queued")?.length ?? 0,
-      done: groups.get("done")?.length ?? 0,
-    };
-  }, [data]);
+  const counts = useMemo(() => headerCounts(data?.cards ?? [], values.boardColumns), [data, values.boardColumns]);
 
   const styles = useMemo(() => {
     const { colors } = theme;
@@ -285,17 +294,46 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
   /**
    * A suggestion, a card's action or a held card's answer is sent to the first
    * mate at once, through the chat's own path, and the chat comes into view to
-   * show it going out. The draft the captain was typing is left as it was.
+   * show it going out, unless the sender asked to keep the tab: a reply written on a topic stays on it. The draft the captain was typing is left as it was.
    * While a message is on its way the buttons are disabled, and a press that
    * still gets through is refused by the sender, so a double press sends once.
    */
-  function tellMate(text: string, onFailure?: () => void, onSent?: () => void): boolean {
+  function tellMate(text: string, onFailure?: () => void, onSent?: () => void, options?: { keepTab?: boolean }): boolean {
     if (mate === null || !mateSender.send(captainMessage(text, []), onFailure, onSent)) return false;
+    if (options?.keepTab === true) return true;
     if (compact) setTab("chat");
     else if (values.chatCollapsed) save({ chatCollapsed: false });
     return true;
   }
   const toMate: MateAsk = { sending: mateSender.sending, send: tellMate };
+
+  /** The topics a card opens as a thread: an item on the board with no agent of its own. */
+  const threads = useMemo(
+    () =>
+      new Set(
+        (data?.cards ?? []).flatMap((card) => (card.agent === null && card.backlog !== null ? [card.backlog.id] : [])),
+      ),
+    [data],
+  );
+  const openCard = watching === null ? null : findOpenCard(data?.cards ?? [], watching, watchingTask);
+  /** Set only while the thread itself is on screen: an open agent shows its transcript, not the thread. */
+  const openTopic = openCard?.agent === null ? openCard.backlog?.id : undefined;
+  const openLastAt = openCard?.lastMessage?.at;
+  // A thread whose line gained an agent is now that agent's card: follow it to its new id.
+  useEffect(() => {
+    const now = openCard === null ? null : openId(openCard);
+    if (now !== null && now !== watching) setWatching(now);
+  }, [openCard, watching]);
+  // A card that has left the board closes its view, rather than showing a task id as an agent's.
+  useEffect(() => {
+    if (data !== null && watching !== null && openCard === null) setWatching(null);
+  }, [data, watching, openCard]);
+  /** Opening a topic reads it, and so does each newer message that arrives while it stays open. */
+  useEffect(() => {
+    if (display.status !== "ready" || openTopic === undefined || openLastAt === undefined) return;
+    const next = readPatch(values.topicsRead, openTopic, openLastAt);
+    if (next !== null) save({ topicsRead: next });
+  }, [display.status, openTopic, openLastAt, values.topicsRead]);
 
   /**
    * A suggestion's trash: the daemon records it as dismissed and its line leaves the first mate's file,
@@ -492,13 +530,7 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
       </View>
       {data === null ? null : (
         <Text style={styles.meta} numberOfLines={1}>
-          {[
-            `${counts.working} working`,
-            `${counts.blocked} blocked`,
-            `${counts.queued} queued`,
-            `${counts.done} done`,
-            shortPath(data.home, compact ? 28 : 56),
-          ].join(" · ")}
+          {[...counts, shortPath(data.home, compact ? 28 : 56)].join(" · ")}
         </Text>
       )}
     </View>
@@ -529,6 +561,7 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
   const board = (
     <Board
       cards={data.cards}
+      columns={values.boardColumns}
       order={order}
       collapsed={values.collapsedColumns}
       theme={theme}
@@ -538,9 +571,10 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
       onRemoveSuggestion={dismissSuggestion}
       watches={data.watches}
       onOpenFile={openFile}
-      onWatch={setWatching}
+      topicsRead={values.topicsRead}
+      onOpen={setWatching}
       onChanged={refresh}
-      onToggleColumn={(id: ColumnId) =>
+      onToggleColumn={(id: string) =>
         save({
           collapsedColumns: values.collapsedColumns.includes(id)
             ? values.collapsedColumns.filter((column) => column !== id)
@@ -556,22 +590,39 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
       mate={mate}
       theme={theme}
       compact={compact}
+      hiddenKinds={values.hiddenChatKinds}
+      threads={threads}
       onChanged={refresh}
       onOpenFile={openFile}
     />
   );
+  const openAgentId = openCard?.agent?.id ?? null;
   const crew =
-    watching === null ? (
+    watching === null || openCard === null ? (
+      board
+    ) : openTopic !== undefined ? (
+      <TopicView
+        key={watching}
+        card={openCard}
+        topicId={openTopic}
+        theme={theme}
+        compact={compact}
+        pollSeconds={values.pollSeconds}
+        onBack={() => setWatching(null)}
+        onChanged={refresh}
+        toMate={toMate}
+      />
+    ) : openAgentId === null ? (
       board
     ) : (
       <CrewmateView
         key={watching}
-        agentId={watching}
-        card={data.cards.find((card) => card.agent?.id === watching) ?? null}
+        agentId={openAgentId}
+        card={openCard}
         theme={theme}
         compact={compact}
         onBack={() => setWatching(null)}
-        onOpen={navigation === undefined ? null : () => navigation.openAgent({ agentId: watching })}
+        onOpen={navigation === undefined ? null : () => navigation.openAgent({ agentId: openAgentId })}
         onChanged={refresh}
         toMate={toMate}
       />

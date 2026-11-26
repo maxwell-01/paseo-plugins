@@ -50,6 +50,14 @@ describe("parseBacklog", () => {
     expect(scout).toMatchObject({ reportPath: "data/scout-auth/report.md", outcome: "done 2026-09-19" });
   });
 
+  it("keeps every (note: ...) group, in order, and out of the title", () => {
+    const [item, plain] = parseBacklog(
+      "## Queued\n- [ ] dark-mode - Add dark mode (note: Ada wants it before launch) (project: web) (note: keep the toggle in settings)\n- [ ] other - Other",
+    );
+    expect(item).toMatchObject({ title: "Add dark mode", notes: ["Ada wants it before launch", "keep the toggle in settings"] });
+    expect(plain?.notes).toEqual([]);
+  });
+
   it("reads an In flight item's pull request and leaves the review head out of its title", () => {
     const [item] = parseBacklog(
       "## In flight\n- [ ] fix-login - Fix login https://github.com/you/web/pull/42 (project: web) (agent: 3f2a9c) (hold: merge) (review-head: 0a1b2c3d)",

@@ -17,7 +17,7 @@ compile time. This file covers only what is specific to `firstmate`.
 | `index.server.ts`             | Wiring — the RPCs, the display settings document, the steer relay hook.                    |
 | `index.client.tsx`            | Wiring — the screen, sidebar item, two panels, settings screen, ⌘K items, `/fm` `/bearings` `/ahoy`. |
 | `shared/fleet.ts`             | Every RPC contract, the card/fleet shapes, the daemon config shape, and `CREW_LABELS`.     |
-| `shared/settings.ts`          | The host settings document: column order and folds, the chat's width, the poll interval.   |
+| `shared/settings.ts`          | The host settings document: column order and folds, the chat's width, the poll interval, hidden chat kinds, what is read. |
 | `templates/`                  | **Every file the plugin writes into the home**, as Markdown laid out as it lands there, and the parts that go inside them. The first mate's behaviour is `templates/data/charter.md`. |
 | `server/templates.ts`         | Finds `templates/` — through `paseo plugin ls`, since the compiled plugin cannot say where it lives — and reads it. |
 | `server/charter.ts`           | Renders `AGENTS.md`: the charter's placeholders filled, under its heading note.            |
@@ -67,6 +67,9 @@ compile time. This file covers only what is specific to `firstmate`.
 | `client/watches.tsx`          | The Watches card: each watch's schedule, last run and output, and its on/off switch.       |
 | `client/mate-send.ts`         | Sending to the first mate — Send, Bearings, Ahoy, a suggestion — one message at a time.    |
 | `client/crewmate.tsx`         | Watch: one crewmate's card beside its live transcript, in the board's place.               |
+| `client/topic.tsx`            | Open: a card with no agent, beside the daemon's thread of messages filed under its item.   |
+| `client/reply-box.tsx`        | The box under a thread or a transcript: who gets it, the text, Send; the draft kept on `globalThis`. |
+| `client/reply-target.ts`      | Who a reply goes to, what it says above the box, the tagged text, the draft's slot. Pure.  |
 | `client/activity-rows.ts`     | Timeline entries → Watch rows, machinery kept: reasoning, tool detail, the latest plan. Pure. |
 | `client/mate-controls.tsx`    | The context meter, Compact and Restart (with its confirmation), at the end of the chat's buttons. |
 | `client/context-meter.tsx`    | How full the first mate's context is: Paseo's ring, built from views; the numbers in a tooltip. |
@@ -794,6 +797,64 @@ Attachments and card answers are not persisted. A new mate UUID gets a new draft
 
 The pending attachments live beside the draft on `globalThis` (`client/attachments.ts`), bytes and
 all, so a lost connection keeps them; a failed send puts them back unless something new was attached.
+
+## Topics
+
+A backlog item is a topic, and a message is filed under it by a tag a compiler cannot check.
+
+**The tag and the filing rule are shared.** A captain message that starts `[topic: <id>]`, and a first-mate
+reply that starts with it (read after the reply's pieces are joined), belong to topic `<id>`; the tag is
+shown off. `splitTopicTag` and `topicTag` in `shared/topics.ts` are the only place that spells the tag.
+Nothing is filed by inheritance: an untagged reply, a tool call and an injected note stay in the chat,
+because Paseo never records its own notes in the timeline and an untagged reply may be to one. The daemon
+files by `fileTopicMessages` (`server/topic-log.ts`) and the chat by `fileRows` in
+`client/transcript-rows.ts`; a change to what counts as a tagged message changes both, or a message
+shows in the chat and on its card, or in neither. They also cut a reply in the same place: `endsReply`
+names the entries that end one (the kinds the chat draws a row for), and reasoning and plans do not, so a
+reply streamed across them is one message in both. An injected message (`classifyUserMessage`) is never
+filed. A captain message that is only a tag is stored and drawn as `ATTACHMENTS_ONLY`. The charter (§2)
+tells the first mate to start every message about an item with the tag; one without it stays in the chat.
+
+**The chat hides a tagged row only where a thread shows it.** Only a card with a backlog item and no agent
+opens as a thread; `chatRows` leaves the rows of those topics to it and keeps every other tagged row (an item
+with an agent, a mistyped id, an item gone from the board) in the chat with its tag put back. A card with
+an agent opens its transcript, not the thread, so opening it does not mark its topic read.
+
+**Threads are kept on the daemon** (`server/topic-log.ts`, `topics.json` in the plugin's data folder)
+because the chat reads only the last 150 entries of a timeline that holds thousands. A thread built
+from that tail would lose a message within the hour. The log upserts by message id and never deletes on a
+re-read, keeps each topic ordered by time and keeps the newest 200.
+
+**A message is identified by its first mate and its seq, and ordered by time.** Its `id` is
+`<agent id>:<seqStart>`, the agent whose timeline it is from and where it starts there, so a streaming reply
+keeps its id as it grows and two first mates' messages never collide, whichever of them is adopted again.
+A seq counts from zero in every agent and is never compared across agents: order, and "newest", always go
+by `at`.
+
+**Unread state is a settings document** (`topicsRead` in `shared/settings.ts`, topic id to the `at` of the
+newest message read) because the client writes it, the daemon has no use for it, and every device the
+captain uses should agree on what is read. Opening a thread, and each newer message while it is open, saves
+that time through the surface's batched `save`.
+
+**An open view is found again when its card changes.** The board remembers an open card by its `openId`
+(its agent's id, else its task id) and its task id beside it. When a thread's backlog line gains an
+`(agent: …)`, the card's `openId` changes; `findOpenCard` then finds it by the task id, and the view becomes
+that agent's. The view closes only when neither is on the board.
+
+**A card's last message** is the newer by `at` of two things: the newest message filed under its item, and,
+for a card with no status line, what its agent last said (`from: "agent"`, read with the status line by
+`ReportCache` and never stored in the topic log). A card with no agent is unread by a first-mate message
+newer than the one read; a card with an agent is unread by its `requiresAttention` alone, since it opens a
+transcript that never shows the thread.
+
+**The reply box has two destinations.** A card with an agent steers it directly; the thread and the
+transcript show a reply box instead of the held card's Answer box (`hideAnswer`), since two boxes sending
+to the same place in different ways would confuse. A backlog item's own agent has no crew label, so a
+steer to it is not relayed to the first mate (`steerCrew` records only labelled crewmates). The screen's
+header counts follow the board's column layout (`headerCounts`).
+
+**A card's action buttons stay untagged.** Their prompts and the Answer box's `<id> — <title>: …` are a
+contract with the charter and bb's FirstMate, so they are not filed. Only the reply box tags.
 
 ## What was left out
 

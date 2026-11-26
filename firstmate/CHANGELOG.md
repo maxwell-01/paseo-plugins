@@ -7,6 +7,42 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Every version
 as `@gpambrozio/paseo-firstmate` and tagged here, so a version is something to install and a line to
 read before you move.
 
+## [0.6.0] — 2026-11-26
+
+Everything you say about one backlog item can now live on its card instead of in the one long chat.
+
+### Added
+
+- **Open a card.** Every card has a button: **Watch** for a card with a worker, **Open** for one without.
+  A card without a worker opens beside its thread: what you and the first mate said about that item,
+  kept by the plugin, so last week's messages are still there. A card with a worker keeps its live
+  transcript.
+- **A reply box** under the thread and under a worker's transcript. It says who gets the message: "To
+  the first mate, filed under fix-flaky-login", or "To <the worker>, directly". A message to the first
+  mate starts with the item's `[topic: <id>]` tag, and the first mate starts its reply with the same
+  tag, so both are filed under the card. Sending from a card leaves you where you are, also on a phone.
+  What you half-typed is kept until the message is delivered.
+- **The last message and an unread dot on a card.** A card with no status line shows the last message
+  of its thread, or what its worker last said, whichever is newer, and a dot marks a first-mate reply you have not opened yet, or a worker that wants you.
+  What you have read is shared by every device you use.
+- **Four columns as a setting.** *Needs you*, *Working*, *Queued* and *Done*, as an alternative to the
+  seven columns, with the counts under the title following. The seven stay the default.
+- **A backlog item's own worker on its card.** An item whose line names a running agent by its full id,
+  `(agent: <id>)`, shows that agent on its card, and Steer and Interrupt reach it. The first mate is not told about a steer to such a worker, since it
+  never dispatched it.
+- **`(note: …)` on a backlog line** is read as a note on the item, as often as it is written.
+
+### Changed
+
+- **The chat is for general conversation.** Messages filed under a card that opens as a thread are shown
+  there, not in the chat. A tagged message about an item with its own worker, or one that is gone, stays
+  in the chat with its tag.
+- **Cross-daemon messages are hidden in the chat by default**, and one that is shown is folded to one
+  line. *Settings › FirstMate › Hide in the chat* also hides messages from other agents, Paseo and board
+  notices, watch output and tool calls, each on its own.
+- The charter has a new paragraph about the tag. A home that never edited its charter gets it by itself;
+  an edited one gets the usual **Compare** notice.
+
 ## [0.5.0] — 2026-11-20
 
 **Requires Paseo 0.16.** This version does not load on Paseo 0.15 or older; stay on 0.4.2 until you
