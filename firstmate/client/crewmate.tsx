@@ -385,6 +385,7 @@ function ActivityTranscript({
           <View key={request.id} onLayout={(event) => follow.reveal(request.id, event.nativeEvent.layout)}>
             <PermissionCard
               request={request}
+              who={timeline.agent?.title ?? "The agent"}
               theme={theme}
               compact={compact}
               onRespond={(response) => respond(request.id, response)}

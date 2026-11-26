@@ -31,7 +31,8 @@ export const displaySettings = defineSettings({
      */
     chatWidthFraction: z.number().min(0.2).max(0.8).default(0.36),
     chatCollapsed: z.boolean().default(false),
-    boardCollapsed: z.boolean().default(false),
+    /** The crew panel beside the topics: hidden until asked for, so the board of topics has the width. */
+    boardCollapsed: z.boolean().default(true),
     pollSeconds: z.number().int().min(1).max(120).default(5),
     /** Kinds of row the chat leaves out, from `CHAT_KINDS`. Cross-daemon messages are machine chatter, so hidden until asked for. */
     hiddenChatKinds: z.array(z.string()).default(["cross-daemon"]),

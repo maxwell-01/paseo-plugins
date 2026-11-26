@@ -1,24 +1,26 @@
 /**
- * The Topics board: Needs you, Working, Queued and Done side by side across the whole screen, each a
- * plain list of topic cards under a small heading with its count. On a phone the columns stack into one
- * list and Done is left out: the phone is for what is live.
+ * The board of topics: Needs you, Working, Queued and Done side by side across the main pane, each a
+ * plain list of topic cards under a small heading with its count. In a narrow pane the columns stack
+ * into one list, and on a phone Done is left out: the phone is for what is live.
  *
- * Done draws only its newest topics (`shownDone`) and says how many older ones the backlog still holds.
+ * Done draws only its newest topics (`shownDone`), with a button that draws more.
  */
 import type { PluginTheme } from "@getpaseo/plugin";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ScrollView, Text, View } from "react-native";
 
 import type { CardAction, FleetCard } from "../shared/fleet";
 import { CAPTAIN_COLUMN_IDS, CAPTAIN_COLUMNS, groupCaptainCards, type CaptainColumnId } from "./format";
 import { TopicCard } from "./topic-card";
-import { shownDone, topicUnread } from "./topic-format";
+import { DONE_SHOWN, shownDone, topicUnread } from "./topic-format";
 import { FONT_SIZE } from "./type-scale";
+import { ShowMore } from "./ui";
 
 export function TopicsBoard({
   cards,
   theme,
   compact,
+  narrow,
   topicsRead,
   sending,
   onOpen,
@@ -26,7 +28,10 @@ export function TopicsBoard({
 }: {
   cards: readonly FleetCard[];
   theme: PluginTheme;
+  /** A phone. */
   compact: boolean;
+  /** Too narrow for four columns: one list. */
+  narrow: boolean;
   /** When the captain last had each topic open, by `readKey`; an unread dot is judged against it. */
   topicsRead: Readonly<Record<string, string>>;
   sending: boolean;
@@ -34,6 +39,7 @@ export function TopicsBoard({
   onAnswer: (card: FleetCard, action: CardAction) => void;
 }) {
   const groups = useMemo(() => groupCaptainCards(cards), [cards]);
+  const [doneLimit, setDoneLimit] = useState(DONE_SHOWN);
   const columns: readonly CaptainColumnId[] = compact
     ? CAPTAIN_COLUMN_IDS.filter((id) => id !== "done")
     : CAPTAIN_COLUMN_IDS;
@@ -42,10 +48,10 @@ export function TopicsBoard({
     const { colors } = theme;
     return {
       scroll: { flex: 1 },
-      board: compact
+      board: narrow
         ? { padding: 10, paddingBottom: 24, gap: 16 }
         : { flexDirection: "row" as const, alignItems: "flex-start" as const, padding: 14, gap: 12 },
-      column: compact ? { gap: 8 } : { flex: 1, minWidth: 0, gap: 8 },
+      column: narrow ? { gap: 8 } : { flex: 1, minWidth: 0, gap: 8 },
       heading: {
         color: colors.foregroundMuted,
         fontSize: FONT_SIZE.caption,
@@ -54,19 +60,20 @@ export function TopicsBoard({
         textTransform: "uppercase" as const,
       },
       count: { fontWeight: "400" as const, opacity: 0.7 },
-      older: { color: colors.foregroundMuted, fontSize: FONT_SIZE.caption, paddingHorizontal: 2 },
     };
-  }, [theme, compact]);
+  }, [theme, narrow]);
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.board}>
       {columns.map((id) => {
         const all = groups.get(id) ?? [];
-        const { shown, older } = id === "done" ? shownDone(all) : { shown: all, older: 0 };
+        const { shown, older } = id === "done" ? shownDone(all, doneLimit) : { shown: all, older: 0 };
         return (
           <View key={id} style={styles.column}>
             <Text style={styles.heading} accessibilityRole="header">
-              {CAPTAIN_COLUMNS[id].title} <Text style={styles.count}>{all.length}</Text>
+              {CAPTAIN_COLUMNS[id].title}
+              {/* Everything ever finished is not a figure the captain acts on. */}
+              {id === "done" ? null : <Text style={styles.count}> {all.length}</Text>}
             </Text>
             {shown.map((card) => (
               <TopicCard
@@ -80,9 +87,7 @@ export function TopicsBoard({
               />
             ))}
             {older === 0 ? null : (
-              <Text style={styles.older}>
-                {older} older {older === 1 ? "topic is" : "topics are"} in the backlog.
-              </Text>
+              <ShowMore theme={theme} count={Math.min(DONE_SHOWN, older)} onPress={() => setDoneLimit(doneLimit + DONE_SHOWN)} />
             )}
           </View>
         );

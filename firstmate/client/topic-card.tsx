@@ -1,5 +1,5 @@
 /**
- * One topic on the Topics board: its title, its project and date, then either what it asks of the captain,
+ * One topic on the board of topics: its title, its project and date, then either what it asks of the captain,
  * in the warning colour with the first mate's answer buttons, or one line of the last thing said. The
  * whole card opens the topic; an answer button sends its prompt without opening it.
  */

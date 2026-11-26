@@ -205,7 +205,22 @@ export function Spinner({ size, color }: { size: number; color: string }) {
   );
 }
 
-/** A full-width notice under the header. */
+/** The foot of a list cut short: draws `count` more of it. */
+export function ShowMore({ theme, count, onPress }: { theme: PluginTheme; count: number; onPress: () => void }) {
+  const styles = useMemo(
+    () => ({
+      button: { alignSelf: "flex-start" as const, paddingHorizontal: 2, paddingVertical: 4 },
+      label: { color: theme.colors.accent, fontSize: FONT_SIZE.caption },
+    }),
+    [theme],
+  );
+  return (
+    <Pressable accessibilityRole="button" style={styles.button} onPress={onPress}>
+      <Text style={styles.label}>Show {count} more</Text>
+    </Pressable>
+  );
+}
+
 export interface BannerAction {
   label: string;
   icon: string;
@@ -213,6 +228,7 @@ export interface BannerAction {
   disabled?: boolean;
 }
 
+/** A full-width notice under the header. */
 export function Banner({
   theme,
   tone,

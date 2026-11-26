@@ -1,5 +1,5 @@
 /**
- * One topic, opened from the Topics board: its thread on the left — who said each message, the captain's
+ * One topic, opened from the board of topics: its thread on the left — who said each message, the captain's
  * on the right — over the box that sends the next one and says who gets it, and beside it the topic's
  * details: where it stands, who it talks to, its links, what it waits for, the first mate's notes.
  *
@@ -20,6 +20,7 @@ import { cardActions, type MateAsk } from "./card-answer";
 import { CAPTAIN_COLUMNS, captainColumn } from "./format";
 import { useFollowEnd } from "./follow-end";
 import { Markdown } from "./markdown";
+import { PermissionCard, usePendingRequests } from "./permission-card";
 import { ReplyBox } from "./reply-box";
 import { replyTarget } from "./reply-target";
 import { ThreadBubble } from "./thread-bubble";
@@ -41,6 +42,7 @@ export function TopicDetail({
   card,
   theme,
   compact,
+  narrow,
   showInfo,
   pollSeconds,
   toMate,
@@ -50,8 +52,11 @@ export function TopicDetail({
 }: {
   card: FleetCard;
   theme: PluginTheme;
+  /** A phone: Enter adds a line in the reply box. */
   compact: boolean;
-  /** On a phone, draws the details in the thread's place. A wide layout always draws both. */
+  /** Too narrow for the thread and the details side by side. */
+  narrow: boolean;
+  /** In a narrow layout, draws the details in the thread's place. A wide layout always draws both. */
   showInfo: boolean;
   /** How often the fleet is polled; the filed messages are read as often. */
   pollSeconds: number;
@@ -67,7 +72,9 @@ export function TopicDetail({
   const topicId = card.backlog?.id ?? null;
   const agent = card.agent;
   const filed = useTopicMessages(topicId, pollSeconds);
-  const timeline = useAgentTimeline(agent?.id ?? null, agent === null ? "" : agent.updatedAt);
+  const timeline = useAgentTimeline(agent?.id ?? null, agent === null ? "" : `${agent.updatedAt}:${agent.pendingPermissions}`);
+  /** What the topic's agent asks leave for, answered here as its own tab would answer it. */
+  const { pending, respond } = usePendingRequests(agent?.id ?? "", timeline.agent?.pendingPermissions, follow.pin);
   const messages = useMemo(
     () => threadMessages(filed.data?.messages ?? [], timeline.entries, agent?.id ?? ""),
     [filed.data, timeline.entries, agent?.id],
@@ -81,13 +88,13 @@ export function TopicDetail({
   const styles = useMemo(() => {
     const { colors } = theme;
     return {
-      screen: { flex: 1, minHeight: 0, flexDirection: "row" as const, gap: 14, padding: compact ? 0 : 14 },
+      screen: { flex: 1, minHeight: 0, flexDirection: "row" as const, gap: 14, padding: narrow ? 0 : 14 },
       thread: { flex: 1, minWidth: 0, minHeight: 0 },
       scroller: { flex: 1 },
-      messages: { padding: compact ? 10 : 0, paddingBottom: 12, gap: 12 },
+      messages: { padding: narrow ? 10 : 0, paddingBottom: 12, gap: 12 },
       hint: { color: colors.foregroundMuted, fontSize: FONT_SIZE.small, textAlign: "center" as const, padding: 16 },
       error: { color: colors.statusDanger, fontSize: FONT_SIZE.small },
-      info: compact
+      info: narrow
         ? { flex: 1 }
         : {
             width: INFO_WIDTH,
@@ -108,7 +115,7 @@ export function TopicDetail({
       notes: { gap: 3 },
       buttons: { paddingTop: 4 },
     };
-  }, [theme, compact]);
+  }, [theme, narrow]);
 
   function openLink(url: string): void {
     void openExternalUrl(url).catch((caught: unknown) => toast.error(errorText(caught)));
@@ -183,7 +190,7 @@ export function TopicDetail({
     </ScrollView>
   );
 
-  if (compact && showInfo) return <View style={styles.screen}>{info}</View>;
+  if (narrow && showInfo) return <View style={styles.screen}>{info}</View>;
 
   return (
     <View style={styles.screen}>
@@ -191,7 +198,7 @@ export function TopicDetail({
         <View style={styles.scroller}>
           <ScrollView {...follow.scrollProps} style={styles.scroller} contentContainerStyle={styles.messages}>
             {problem === null ? null : <Text style={styles.error}>{problem}</Text>}
-            {messages.length === 0 ? (
+            {messages.length === 0 && pending.length === 0 ? (
               <Text style={styles.hint}>{loading ? "Loading the topic…" : "Nothing has been said about this topic yet."}</Text>
             ) : (
               messages.map((message) => (
@@ -200,6 +207,19 @@ export function TopicDetail({
                 </ThreadBubble>
               ))
             )}
+            {pending.map((request) => (
+              // A direct child of the thread, so its layout is in the thread's coordinates.
+              <View key={request.id} onLayout={(event) => follow.reveal(request.id, event.nativeEvent.layout)}>
+                <PermissionCard
+                  request={request}
+                  who={agent?.title ?? "The agent"}
+                  theme={theme}
+                  compact={compact}
+                  onRespond={(response) => respond(request.id, response)}
+                  onOpenLink={openLink}
+                />
+              </View>
+            ))}
           </ScrollView>
           {follow.away ? <JumpToEnd theme={theme} onPress={follow.jumpToEnd} /> : null}
         </View>
@@ -217,7 +237,7 @@ export function TopicDetail({
           />
         )}
       </View>
-      {compact ? null : info}
+      {narrow ? null : info}
     </View>
   );
 }

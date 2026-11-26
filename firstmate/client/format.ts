@@ -114,16 +114,15 @@ export function lastMessageLine(message: TopicMessage, agentTitle: string | null
   return `${who}: ${message.text.replace(/\s+/g, " ").trim()}`;
 }
 
-/** The counts under the screen's title, by the column layout the board is drawn in. */
-export function headerCounts(cards: readonly FleetCard[], layout: "crew" | "captain"): string[] {
-  if (layout === "captain") {
-    const groups = groupCaptainCards(cards);
-    const count = (id: CaptainColumnId) => groups.get(id)?.length ?? 0;
-    return [`${count("needs-you")} needs you`, `${count("working")} working`, `${count("queued")} queued`, `${count("done")} done`];
-  }
-  const groups = groupCards(cards);
-  const count = (id: ColumnId) => groups.get(id)?.length ?? 0;
-  return [`${count("working")} working`, `${count("blocked")} blocked`, `${count("queued")} queued`, `${count("done")} done`];
+/**
+ * The counts under the screen's title, as the board of topics groups them. Done is what finished lately
+ * (`doneRecently`), since the count of everything ever finished tells the captain nothing.
+ */
+export function headerCounts(cards: readonly FleetCard[], doneRecently: number): string[] {
+  const groups = groupCaptainCards(cards);
+  const count = (id: CaptainColumnId) => groups.get(id)?.length ?? 0;
+  const needsYou = count("needs-you");
+  return [`${needsYou} ${needsYou === 1 ? "needs" : "need"} you`, `${count("working")} working`, `${count("queued")} queued`, `${doneRecently} done in 7 days`];
 }
 
 export function captainTone(theme: PluginTheme, column: CaptainColumnId): string {
