@@ -58,6 +58,31 @@ describe("parseBacklog", () => {
     expect(plain?.notes).toEqual([]);
   });
 
+  it("reads a group whose text holds parentheses of its own, and keeps it out of the title", () => {
+    const [item] = parseBacklog(
+      "## Queued\n- [ ] dark-mode - Add dark mode (v2) (note: see the plan (section 3) before starting) (hold: Follow the system setting (the default) or always dark?) (project: web)",
+    );
+    expect(item).toMatchObject({
+      title: "Add dark mode (v2)",
+      notes: ["see the plan (section 3) before starting"],
+      hold: "Follow the system setting (the default) or always dark?",
+      project: "web",
+    });
+  });
+
+  it("keeps a group written inside another group as that group's text, and an unclosed one in the line", () => {
+    const [item, open] = parseBacklog(
+      "## Queued\n- [ ] a - Alpha (note: was (project: old) before) (project: web)\n- [ ] b - Beta (note: never closed",
+    );
+    expect(item).toMatchObject({ title: "Alpha", notes: ["was (project: old) before"], project: "web" });
+    expect(open).toMatchObject({ title: "Beta (note: never closed", notes: [] });
+  });
+
+  it("files a ticked item as done whichever heading it is under", () => {
+    const items = parseBacklog("## In flight\n- [x] fix-typo - Fix the typo (merged 2026-09-21)\n- [ ] dark-mode - Add dark mode");
+    expect(items.map((item) => `${item.section}:${item.id}`)).toEqual(["done:fix-typo", "in-flight:dark-mode"]);
+  });
+
   it("reads an In flight item's pull request and leaves the review head out of its title", () => {
     const [item] = parseBacklog(
       "## In flight\n- [ ] fix-login - Fix login https://github.com/you/web/pull/42 (project: web) (agent: 3f2a9c) (hold: merge) (review-head: 0a1b2c3d)",
