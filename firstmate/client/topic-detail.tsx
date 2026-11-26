@@ -20,6 +20,7 @@ import { cardActions, type MateAsk } from "./card-answer";
 import { CAPTAIN_COLUMNS, captainColumn } from "./format";
 import { useFollowEnd } from "./follow-end";
 import { Markdown } from "./markdown";
+import { PermissionCard, usePendingRequests } from "./permission-card";
 import { ReplyBox } from "./reply-box";
 import { replyTarget } from "./reply-target";
 import { ThreadBubble } from "./thread-bubble";
@@ -67,7 +68,9 @@ export function TopicDetail({
   const topicId = card.backlog?.id ?? null;
   const agent = card.agent;
   const filed = useTopicMessages(topicId, pollSeconds);
-  const timeline = useAgentTimeline(agent?.id ?? null, agent === null ? "" : agent.updatedAt);
+  const timeline = useAgentTimeline(agent?.id ?? null, agent === null ? "" : `${agent.updatedAt}:${agent.pendingPermissions}`);
+  /** What the topic's agent asks leave for, answered here as its own tab would answer it. */
+  const { pending, respond } = usePendingRequests(agent?.id ?? "", timeline.agent?.pendingPermissions, follow.pin);
   const messages = useMemo(
     () => threadMessages(filed.data?.messages ?? [], timeline.entries, agent?.id ?? ""),
     [filed.data, timeline.entries, agent?.id],
@@ -191,7 +194,7 @@ export function TopicDetail({
         <View style={styles.scroller}>
           <ScrollView {...follow.scrollProps} style={styles.scroller} contentContainerStyle={styles.messages}>
             {problem === null ? null : <Text style={styles.error}>{problem}</Text>}
-            {messages.length === 0 ? (
+            {messages.length === 0 && pending.length === 0 ? (
               <Text style={styles.hint}>{loading ? "Loading the topic…" : "Nothing has been said about this topic yet."}</Text>
             ) : (
               messages.map((message) => (
@@ -200,6 +203,19 @@ export function TopicDetail({
                 </ThreadBubble>
               ))
             )}
+            {pending.map((request) => (
+              // A direct child of the thread, so its layout is in the thread's coordinates.
+              <View key={request.id} onLayout={(event) => follow.reveal(request.id, event.nativeEvent.layout)}>
+                <PermissionCard
+                  request={request}
+                  who={agent?.title ?? "The agent"}
+                  theme={theme}
+                  compact={compact}
+                  onRespond={(response) => respond(request.id, response)}
+                  onOpenLink={openLink}
+                />
+              </View>
+            ))}
           </ScrollView>
           {follow.away ? <JumpToEnd theme={theme} onPress={follow.jumpToEnd} /> : null}
         </View>

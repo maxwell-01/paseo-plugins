@@ -172,7 +172,7 @@ describe("who a topic talks to", () => {
   });
 });
 
-describe("the Topics badge", () => {
+describe("the FirstMate row's badge", () => {
   it("counts the topics that wait on the captain", () => {
     expect(needsYouCount([card({ backlog: item({ hold: "A or B?" }) }), card(), card({ column: "failed" })])).toBe(2);
   });

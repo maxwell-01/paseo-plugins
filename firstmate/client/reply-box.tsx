@@ -1,5 +1,5 @@
 /**
- * The box under a card's thread or a crewmate's transcript: one line saying who gets the message, a text
+ * The box under a topic's thread: one line saying who gets the message, a text
  * box and Send. A card with an agent steers it directly; any other goes to the first mate through the
  * board's sender, tagged with the item's id so the board files it under the card (`./reply-target`).
  *
@@ -98,7 +98,7 @@ export function ReplyBox({
         .finally(() => setSteering(false));
       return;
     }
-    toMate?.send(mateReplyText(target.topicId, words), undefined, clearAndTell, { keepTab: true });
+    toMate?.send(mateReplyText(target.topicId, words), undefined, clearAndTell);
   }
 
   return (

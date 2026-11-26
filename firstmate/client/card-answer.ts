@@ -14,10 +14,8 @@ export interface MateAsk {
   sending: boolean;
   /**
    * Sends `text` as the captain's message; false when refused. `onFailure` runs after the failure
-   * toast, `onSent` once the daemon has taken it. By default the chat comes into view to show it going
-   * out; `keepTab` leaves the captain where they are, for a reply written on a topic.
-   */
-  send: (text: string, onFailure?: () => void, onSent?: () => void, options?: { keepTab?: boolean }) => boolean;
+   * toast, `onSent` once the daemon has taken it.   */
+  send: (text: string, onFailure?: () => void, onSent?: () => void) => boolean;
 }
 
 /** A card waiting on the captain: its backlog line carries a `(hold: …)`. */
@@ -46,8 +44,7 @@ export function answerText(card: FleetCard, typed: string): string | null {
 
 /**
  * Half-typed answers, by `answerKey`. A card remounts when it changes column —
- * a crewmate stopping moves it — and the surface unmounts on navigation, a
- * phone's switch to the chat after a send included, so an answer kept in
+ * a crewmate stopping moves it — and the screen unmounts on navigation, so an answer kept in
  * component state would be lost exactly while it is typed or on its way. The
  * chat's own draft store, on `globalThis`, so a lost connection keeps it too.
  */
