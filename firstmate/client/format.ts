@@ -8,6 +8,7 @@ import {
   type WatchResult,
   type WatchSummary,
 } from "../shared/fleet";
+import { isHeld } from "./card-answer";
 
 export interface ColumnMeta {
   id: ColumnId;
@@ -25,6 +26,43 @@ export const COLUMNS: Readonly<Record<ColumnId, ColumnMeta>> = {
   failed: { id: "failed", title: "Failed", icon: "AlertTriangle" },
   idle: { id: "idle", title: "Idle", icon: "CircleDot" },
 };
+
+/** The captain's four columns, in the one order they are drawn. */
+export const CAPTAIN_COLUMN_IDS = ["needs-you", "working", "queued", "done"] as const;
+export type CaptainColumnId = (typeof CAPTAIN_COLUMN_IDS)[number];
+
+export const CAPTAIN_COLUMNS: Readonly<Record<CaptainColumnId, { title: string; icon: string }>> = {
+  "needs-you": { title: "Needs you", icon: "BellRing" },
+  working: { title: "Working", icon: "Hammer" },
+  queued: { title: "Queued", icon: "Inbox" },
+  done: { title: "Done", icon: "Check" },
+};
+
+/**
+ * Where a card sits when the board is read as "what do I have to do": a
+ * finished item is Done whatever its line still says; anything held, blocked or
+ * failed waits on the captain; a crewmate at work or at rest is Working; the
+ * rest has not started.
+ */
+export function captainColumn(card: FleetCard): CaptainColumnId {
+  if (card.backlog?.section === "done" || card.column === "done") return "done";
+  if (isHeld(card) || card.column === "blocked" || card.column === "failed") return "needs-you";
+  if (card.column === "working" || card.column === "idle") return "working";
+  return "queued";
+}
+
+export function captainTone(theme: PluginTheme, column: CaptainColumnId): string {
+  switch (column) {
+    case "needs-you":
+      return theme.colors.statusWarning;
+    case "working":
+      return theme.colors.accent;
+    case "done":
+      return theme.colors.statusSuccess;
+    default:
+      return theme.colors.foregroundMuted;
+  }
+}
 
 /** The saved order, known ids only, followed by any column it does not mention. */
 export function orderedColumns(saved: readonly string[]): ColumnId[] {
@@ -62,7 +100,7 @@ export function moveColumn(
 export const SUGGESTIONS_CARD = "suggestions";
 /** The watches card, likewise. */
 export const WATCHES_CARD = "watches";
-export type BoardItem = ColumnId | typeof SUGGESTIONS_CARD | typeof WATCHES_CARD;
+export type BoardItem<Column extends string = ColumnId> = Column | typeof SUGGESTIONS_CARD | typeof WATCHES_CARD;
 
 /**
  * What the wide board lays out: the suggestions card first, when the first mate
@@ -70,8 +108,12 @@ export type BoardItem = ColumnId | typeof SUGGESTIONS_CARD | typeof WATCHES_CARD
  * watches. Each card counts toward `boardRows` like a column, but never folds or
  * moves.
  */
-export function boardItems(shown: readonly ColumnId[], hasSuggestions: boolean, hasWatches = false): BoardItem[] {
-  const items: BoardItem[] = hasSuggestions ? [SUGGESTIONS_CARD, ...shown] : [...shown];
+export function boardItems<Column extends string>(
+  shown: readonly Column[],
+  hasSuggestions: boolean,
+  hasWatches = false,
+): BoardItem<Column>[] {
+  const items: BoardItem<Column>[] = hasSuggestions ? [SUGGESTIONS_CARD, ...shown] : [...shown];
   if (hasWatches) items.push(WATCHES_CARD);
   return items;
 }
@@ -252,6 +294,13 @@ export function modelLabel(agent: Pick<AgentSummary, "provider" | "model">): str
 export function groupCards(cards: readonly FleetCard[]): Map<ColumnId, FleetCard[]> {
   const groups = new Map<ColumnId, FleetCard[]>(COLUMN_IDS.map((id) => [id, []]));
   for (const card of cards) groups.get(card.column)?.push(card);
+  return groups;
+}
+
+/** Cards grouped into the captain's four columns, each in the order the daemon sent them. */
+export function groupCaptainCards(cards: readonly FleetCard[]): Map<CaptainColumnId, FleetCard[]> {
+  const groups = new Map<CaptainColumnId, FleetCard[]>(CAPTAIN_COLUMN_IDS.map((id) => [id, []]));
+  for (const card of cards) groups.get(captainColumn(card))?.push(card);
   return groups;
 }
 
