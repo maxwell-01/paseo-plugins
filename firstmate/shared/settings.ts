@@ -11,6 +11,9 @@ import { COLUMN_IDS } from "./fleet";
 
 export const POLL_SECONDS = [3, 5, 10, 30] as const;
 
+/** What the chat can hide, in the order the settings screen lists them: each source of an injected message, then tool calls. */
+export const CHAT_KINDS = ["cross-daemon", "agent", "notice", "watch", "tool"] as const;
+
 export const displaySettings = defineSettings({
   id: "display",
   scope: "host",
@@ -30,6 +33,8 @@ export const displaySettings = defineSettings({
     chatCollapsed: z.boolean().default(false),
     boardCollapsed: z.boolean().default(false),
     pollSeconds: z.number().int().min(1).max(120).default(5),
+    /** Kinds of row the chat leaves out, from `CHAT_KINDS`. Cross-daemon messages are machine chatter, so hidden until asked for. */
+    hiddenChatKinds: z.array(z.string()).default(["cross-daemon"]),
   }),
 });
 
