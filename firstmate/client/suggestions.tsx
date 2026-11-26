@@ -9,8 +9,7 @@
  * the trash, shown only when something is cut (`./suggestion-fold`), opens the
  * whole suggestion below the card, wrapped and selectable, without sending it.
  *
- * Drawn as a card among the board's columns on a wide layout, and as the
- * Suggestions tab on a phone.
+ * Drawn as a view of its own, opened from the board's menu.
  */
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/react-native";

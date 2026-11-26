@@ -129,32 +129,6 @@ export function Segmented<Value extends string>({
   );
 }
 
-/** The captain's words as a bubble on the right, in the chat and on a topic's thread. */
-export function CaptainBubble({ theme, text }: { theme: PluginTheme; text: string }) {
-  const colors = theme.colors;
-  const styles = useMemo(
-    () => ({
-      bubble: {
-        alignSelf: "flex-end" as const,
-        maxWidth: "88%" as const,
-        backgroundColor: colors.surface2,
-        borderRadius: 10,
-        paddingHorizontal: 10,
-        paddingVertical: 7,
-      },
-      text: { color: colors.foreground, fontSize: FONT_SIZE.body, lineHeight: lineHeightFor(FONT_SIZE.body) },
-    }),
-    [colors],
-  );
-  return (
-    <View style={styles.bubble}>
-      <Text selectable style={styles.text}>
-        {text}
-      </Text>
-    </View>
-  );
-}
-
 /**
  * The round button over a transcript's foot that goes back to its end, shown
  * while the reader is scrolled away from it — as in Paseo's own agent view.

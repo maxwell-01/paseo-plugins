@@ -30,7 +30,7 @@ type RowBody =
 export type TranscriptRow = RowBody & { topicId: string | null };
 
 /** One line for a tool call: what it did, in the fewest words its detail allows. */
-export function toolSummary(item: ToolCallItem): string {
+function toolSummary(item: ToolCallItem): string {
   const detail = item.detail;
   switch (detail.type) {
     case "shell":
@@ -57,7 +57,7 @@ export function toolSummary(item: ToolCallItem): string {
 }
 
 /** MCP tools arrive as `mcp__paseo__create_agent`; the server name is noise. */
-export function toolDisplayName(name: string): string {
+function toolDisplayName(name: string): string {
   return name.replace(/^mcp__[^_]+__/, "").replace(/_/g, " ");
 }
 
@@ -68,7 +68,7 @@ const COMPACTING = "Compacting context…";
  * as it starts and one as it ends, and the second takes the first's place, so
  * a finished compaction is one line rather than two.
  */
-export function pushCompaction<Row extends { kind: string; text?: string; key: string }>(
+function pushCompaction<Row extends { kind: string; text?: string; key: string }>(
   rows: Row[],
   key: string,
   status: "loading" | "completed",
@@ -88,7 +88,7 @@ export function pushCompaction<Row extends { kind: string; text?: string; key: s
  * the tail is full, so neither is in it — a key that changes remounts the row
  * and forgets that it was open.
  */
-export function rowKey(entry: TimelineEntry): string {
+function rowKey(entry: TimelineEntry): string {
   return String(entry.seqStart);
 }
 

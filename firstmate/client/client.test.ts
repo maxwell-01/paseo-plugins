@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { activityRows, clipLines } from "./activity-rows";
 import {
   CaptainMessageSchema,
   MAX_ATTACHMENTS,
@@ -32,9 +31,7 @@ import { createRemovalGate, suggestionRemovals } from "./suggestion-removals";
 import { isDirty, markSaved, type OpenFile } from "./open-file";
 import { allAnswered, buildAnswers, dismissSubmitsEmpty, parseQuestions, toggleOption } from "./questions";
 import {
-  boardItems,
   canEndOrRelaunch,
-  boardRows,
   captainColumn,
   contextPercent,
   contextTone,
@@ -42,22 +39,16 @@ import {
   formatTokenCount,
   findOpenCard,
   groupCaptainCards,
-  headerCounts,
-  isUnread,
   lastMessageLine,
-  moveColumn,
   openId,
   opensAsLeft,
-  orderedColumns,
   readPatch,
   relativeTime,
-  revealFilesPatch,
   shortPath,
   watchStatusText,
   watchTone,
 } from "./format";
 import { CREW_LABELS, watchPath, type AgentSummary, type BacklogItem, type FleetCard, type WatchSummary } from "../shared/fleet";
-import { activeCrewCount } from "./screen";
 import { displaySettings } from "../shared/settings";
 import { chatRows, transcriptRows, visibleRows, type TimelineEntry } from "./transcript-rows";
 
@@ -104,13 +95,11 @@ describe("transcriptRows", () => {
     expect(transcriptRows([entry({ type: "compaction", status: "loading" }, 2)])[0]?.text).toBe("Compacting context…");
   });
 
-  it("folds a watch message to the watches' names, in the chat and in Watch", () => {
+  it("folds a watch message to the watches' names", () => {
     const id = "firstmate-watch-5f0c";
     const one = '<firstmate-watch name="pr-watch" ran="2026-09-25T10:05:00Z">\nPull requests…\n</firstmate-watch>';
     const [row] = transcriptRows([entry({ type: "user_message", text: one, clientMessageId: id }, 1)]);
     expect(row).toMatchObject({ kind: "event", text: "Watch: pr-watch", source: "watch" });
-    const [activity] = activityRows([entry({ type: "user_message", text: one, clientMessageId: id }, 1)]);
-    expect(activity).toMatchObject({ kind: "event", text: "Watch: pr-watch" });
   });
 
   it("never folds the captain's words as a watch message, however much they look like one", () => {
@@ -121,7 +110,6 @@ describe("transcriptRows", () => {
         kind: "captain",
         text,
       });
-      expect(activityRows([entry({ type: "user_message", text }, 1)])[0]).toMatchObject({ kind: "prompt", text });
     }
   });
 
@@ -140,6 +128,18 @@ describe("transcriptRows", () => {
       ["event", "other", "Heads up"],
       ["event", "other", "Context compacted"],
     ]);
+  });
+});
+
+describe("a chat row's key", () => {
+  it("is where the row starts, so it stays mounted while it runs and as the window slides", () => {
+    const call = { type: "tool_call", callId: "c", name: "Bash", detail: { type: "shell", command: "npm test" }, error: null };
+    const running = entry({ ...call, status: "running" }, 7);
+    const finished = { ...entry({ ...call, status: "completed" }, 7), seqEnd: 9 };
+    const before = transcriptRows([running]);
+    const after = transcriptRows([entry({ type: "user_message", text: "Fix it." }, 3), finished]);
+    expect(before).toHaveLength(1);
+    expect(after[1]?.key).toBe(before[0]?.key);
   });
 });
 
@@ -204,17 +204,6 @@ describe("the topic of a row", () => {
   });
 });
 
-describe("activityRows' injected messages", () => {
-  it("folds notices and watches, and leaves a cross-daemon or agent message as the prompt it is", () => {
-    const rows = activityRows([
-      entry({ type: "user_message", text: "[cross-daemon 3f2a9c1e] Harbour asks" }, 1),
-      entry({ type: "user_message", text: '<agent-message from="fix-flaky-login">\nTests pass.\n</agent-message>' }, 2),
-      entry({ type: "user_message", text: "<firstmate-board>\nThe captain spoke.\n</firstmate-board>" }, 3),
-    ]);
-    expect(rows.map((row) => row.kind)).toEqual(["prompt", "prompt", "event"]);
-  });
-});
-
 describe("canEndOrRelaunch", () => {
   const withLabels = (labels: Record<string, string>) => ({ labels }) as AgentSummary;
 
@@ -275,74 +264,11 @@ describe("visibleRows", () => {
   });
 });
 
-describe("activityRows", () => {
-  function tool(detail: unknown, status = "completed", error: unknown = null) {
-    return { type: "tool_call", callId: "c", name: "Bash", detail, status, error };
-  }
-
-  it("keeps the machinery: reasoning joined, tools with what they ran, the brief as a prompt", () => {
-    const rows = activityRows([
-      entry({ type: "user_message", text: "Fix the login bug." }, 1),
-      entry({ type: "reasoning", text: "Look at " }, 2),
-      entry({ type: "reasoning", text: "auth.ts first." }, 3),
-      entry(tool({ type: "shell", command: "npm test", output: "ok\n", exitCode: 0 }), 4),
-      entry({ type: "assistant_message", text: "done: " }, 5),
-      entry({ type: "assistant_message", text: "ready in branch fm/1" }, 6),
-      entry({ type: "user_message", text: "<firstmate-board>\nThe captain spoke to crewmate a1.\n</firstmate-board>" }, 7),
-    ]);
-    expect(rows.map((row) => row.kind)).toEqual(["prompt", "reasoning", "tool", "reply", "event"]);
-    expect(rows[1]).toMatchObject({ text: "Look at auth.ts first." });
-    expect(rows[2]).toMatchObject({ label: "Shell", summary: "npm test", detail: "$ npm test\n\nok\n\nexit 0" });
-    expect(rows[3]).toMatchObject({ text: "done: ready in branch fm/1" });
-  });
-
-  it("shows only the latest plan, where it was last updated", () => {
-    const rows = activityRows([
-      entry({ type: "todo", items: [{ text: "Read", completed: false }] }, 1),
-      entry({ type: "assistant_message", text: "Reading." }, 2),
-      entry({ type: "todo", items: [{ text: "Read", completed: true }, { text: "Fix", completed: false, status: "in_progress" }] }, 3),
-    ]);
-    expect(rows.map((row) => row.kind)).toEqual(["reply", "plan"]);
-    expect(rows[1]).toMatchObject({
-      items: [
-        { text: "Read", status: "completed" },
-        { text: "Fix", status: "in_progress" },
-      ],
-    });
-  });
-
-  it("describes a failed call, an edit and an MCP tool", () => {
-    const [failed, edit, mcp] = activityRows([
-      entry(tool({ type: "read", filePath: "src/a.ts" }, "failed", "ENOENT"), 1),
-      entry(tool({ type: "edit", filePath: "src/b.ts", oldString: "a", newString: "b" }), 2),
-      entry({ ...tool({ type: "unknown", input: { title: "x" }, output: null }), name: "mcp__paseo__create_agent" }, 3),
-    ]);
-    expect(failed).toMatchObject({ label: "Read", status: "failed", detail: "Error: ENOENT" });
-    expect(edit).toMatchObject({ label: "Edit", detail: "- a\n\n+ b" });
-    expect(mcp).toMatchObject({ label: "create agent", summary: '{ "title": "x" }' });
-  });
-
-  it("keys a row by where it starts, so it stays open while it runs and as the window slides", () => {
-    const running = entry(tool({ type: "shell", command: "npm test" }, "running"), 7);
-    const finished = { ...entry(tool({ type: "shell", command: "npm test", output: "ok" }), 7), seqEnd: 9 };
-    const before = activityRows([running]);
-    const after = activityRows([entry({ type: "user_message", text: "Fix it." }, 3), finished]);
-    expect(after[1]?.key).toBe(before[0]?.key);
-  });
-
-  it("drops the plan when the list is emptied", () => {
-    const rows = activityRows([
-      entry({ type: "todo", items: [{ text: "Read", completed: false }] }, 1),
-      entry({ type: "todo", items: [] }, 2),
-    ]);
-    expect(rows).toEqual([]);
-  });
-
-  it("clips long output from the end it matters at", () => {
-    const text = ["1", "2", "3", "4", "5"].join("\n");
-    expect(clipLines(text, 2, "tail")).toBe("… 3 more lines\n4\n5");
-    expect(clipLines(text, 4, "head")).toBe("1\n2\n3\n4\n… 1 more line");
-    expect(clipLines(text, 5, "head")).toBe(text);
+describe("a card that changed column", () => {
+  it("goes back to rest, unless something is in progress in it", () => {
+    expect(opensAsLeft({ column: "working", inProgress: false }, "working")).toBe(true);
+    expect(opensAsLeft({ column: "working", inProgress: false }, "done")).toBe(false);
+    expect(opensAsLeft({ column: "working", inProgress: true }, "done")).toBe(true);
   });
 });
 
@@ -356,79 +282,6 @@ describe("isAtEnd", () => {
     expect(isAtEnd(300, 400, 1300, 1000)).toBe(false);
     expect(isAtEnd(400, 400, 800, 1000)).toBe(true);
     expect(isAtEnd(600, 400, 1000, 0)).toBe(true);
-  });
-});
-
-describe("columns", () => {
-  it("keeps the saved order, drops unknown ids and appends missing ones", () => {
-    expect(orderedColumns(["done", "bogus", "queued"])).toEqual([
-      "done",
-      "queued",
-      "working",
-      "blocked",
-      "parked",
-      "failed",
-      "idle",
-    ]);
-  });
-
-  it("moves a column and clamps at the ends", () => {
-    const order = orderedColumns([]);
-    expect(moveColumn(order, "working", -1).slice(0, 2)).toEqual(["working", "queued"]);
-    expect(moveColumn(order, "queued", -1)).toEqual(order);
-  });
-
-  it("puts a card that moved column back to rest, unless something is in progress in it", () => {
-    expect(opensAsLeft({ column: "working", inProgress: false }, "working")).toBe(true);
-    expect(opensAsLeft({ column: "working", inProgress: false }, "done")).toBe(false);
-    expect(opensAsLeft({ column: "working", inProgress: true }, "done")).toBe(true);
-  });
-
-  it("moves a column past the hidden ones, keeping them in the saved order", () => {
-    const order = orderedColumns([]);
-    // done, blocked and parked hidden: working's right neighbour on screen is failed.
-    const shown = order.filter((id) => !["done", "blocked", "parked"].includes(id));
-    const right = moveColumn(order, "working", 1, shown);
-    expect(right.filter((id) => shown.includes(id))).toEqual(["queued", "failed", "working", "idle"]);
-    expect(right.filter((id) => !shown.includes(id))).toEqual(["blocked", "parked", "done"]);
-    const left = moveColumn(order, "failed", -1, shown);
-    expect(left.filter((id) => shown.includes(id))).toEqual(["queued", "failed", "working", "idle"]);
-    expect(moveColumn(order, "idle", 1, shown)).toEqual(order);
-    expect(moveColumn(order, "done", 1, shown)).toEqual(order);
-  });
-
-  it("lays out up to three columns in one row, more in two with the extra in the second", () => {
-    const sizes = [0, 1, 2, 3, 4, 5, 6, 7].map((count) =>
-      boardRows(Array.from({ length: count }, (_, i) => i)).map((row) => row.length),
-    );
-    expect(sizes).toEqual([[], [1], [2], [3], [2, 2], [2, 3], [3, 3], [3, 4]]);
-    const order = orderedColumns([]);
-    expect(boardRows(order).flat()).toEqual(order);
-    expect(boardRows([1, 2, 3, 4, 5])).toEqual([
-      [1, 2],
-      [3, 4, 5],
-    ]);
-  });
-
-  it("counts the suggestions card as one of the row's cards, first, and only when there are suggestions", () => {
-    expect(boardRows(boardItems(["working", "idle"], true))).toEqual([["suggestions", "working", "idle"]]);
-    expect(boardRows(boardItems(["working", "blocked", "idle"], true))).toEqual([
-      ["suggestions", "working"],
-      ["blocked", "idle"],
-    ]);
-    expect(boardRows(boardItems(["working", "blocked", "idle"], false))).toEqual([["working", "blocked", "idle"]]);
-    expect(boardRows(boardItems([], true))).toEqual([["suggestions"]]);
-    expect(boardRows(boardItems([], false))).toEqual([]);
-  });
-
-  it("counts the watches card too, last, and only when the home has watches", () => {
-    expect(boardRows(boardItems(["working"], true, true))).toEqual([["suggestions", "working", "watches"]]);
-    expect(boardRows(boardItems(["working", "idle"], true, true))).toEqual([
-      ["suggestions", "working"],
-      ["idle", "watches"],
-    ]);
-    expect(boardRows(boardItems([], false, true))).toEqual([["watches"]]);
-    expect(boardRows(boardItems(["working"], false, false))).toEqual([["working"]]);
   });
 });
 
@@ -983,14 +836,6 @@ describe("file links", () => {
   });
 });
 
-describe("revealFilesPatch", () => {
-  it("unhides the right pane on a wide layout, and changes nothing otherwise", () => {
-    expect(revealFilesPatch(false, true)).toEqual({ boardCollapsed: false });
-    expect(revealFilesPatch(false, false)).toBeNull();
-    expect(revealFilesPatch(true, true)).toBeNull();
-  });
-});
-
 describe("createRemovalGate", () => {
   const a = { label: "A", prompt: "a" };
   const b = { label: "B", prompt: "b" };
@@ -1182,25 +1027,6 @@ describe("the captain's columns", () => {
   });
 });
 
-describe("the sidebar row's badge", () => {
-  it("counts the live crewmates in the Working and Idle columns, and nothing else", () => {
-    expect(activeCrewCount([])).toBe(0);
-    const cards = [
-      crewCard("working", { status: "running" }, "working"),
-      crewCard("idle", { status: "idle" }, "idle"),
-      crewCard("reported-done", { status: "idle" }, "idle"),
-      crewCard("blocked", { status: "idle", pendingPermissions: 1 }, "blocked"),
-      crewCard("failed", { status: "error" }, "failed"),
-      crewCard("parked", { status: "idle" }, "parked"),
-      crewCard("landed", { status: "idle" }, "done"),
-      crewCard("queued", null, "queued"),
-      crewCard("backlog-only", null, "working"),
-      crewCard("closed", { status: "closed" }, "idle"),
-    ];
-    expect(activeCrewCount(cards)).toBe(3);
-  });
-});
-
 describe("a card's actions and answer", () => {
   function backlogCard(item: Partial<BacklogItem>): FleetCard {
     const backlog: BacklogItem = {
@@ -1251,8 +1077,8 @@ describe("a card's actions and answer", () => {
   });
 
   /**
-   * The board's sender as `fleet.tsx` builds it: the chat's one-at-a-time gate, and — like a phone — the
-   * board swapped for the chat as soon as a send is taken, which unmounts the card.
+   * A panel's sender with the chat's one-at-a-time gate, where a send that is taken moves the captain
+   * away and so unmounts the card.
    */
   function boardSender() {
     const gate = createSendGate();
@@ -1335,37 +1161,9 @@ describe("opening a card", () => {
   });
 });
 
-describe("a card's last message and unread dot", () => {
+describe("a card's last message and read mark", () => {
+  /** When a message was said, as the minute of an hour on 2026-10-01. */
   const at = (minute: number) => `2026-10-01T10:${String(minute).padStart(2, "0")}:00.000Z`;
-  const item = backlogItem({ id: "fix-flaky-login" });
-  /** `minute` is when it was said, as the minute of an hour on 2026-10-01. */
-  const withLast = (from: "captain" | "mate", minute: number, agent: Partial<AgentSummary> | null = null): FleetCard => ({
-    ...crewCard("backlog:0", agent),
-    backlog: item,
-    lastMessage: { id: `m:${minute}`, from, text: "Waiting on CI.", at: at(minute) },
-  });
-
-  it("is unread when the first mate spoke last, past what was read", () => {
-    expect(isUnread(withLast("mate", 12), {})).toBe(true);
-    expect(isUnread(withLast("mate", 12), { "fix-flaky-login": at(11) })).toBe(true);
-    expect(isUnread(withLast("mate", 12), { "fix-flaky-login": at(12) })).toBe(false);
-    expect(isUnread(withLast("mate", 0), {})).toBe(true);
-  });
-
-  it("is not unread when the captain spoke last, or nothing was said", () => {
-    expect(isUnread(withLast("captain", 12), {})).toBe(false);
-    expect(isUnread({ ...withLast("mate", 12), lastMessage: null }, {})).toBe(false);
-  });
-
-  it("is unread whenever the card's agent wants the captain", () => {
-    expect(isUnread(withLast("captain", 12, { requiresAttention: true }), { "fix-flaky-login": at(59) })).toBe(true);
-    expect(isUnread(crewCard("a1", { requiresAttention: true }), {})).toBe(true);
-  });
-
-  it("goes by the agent alone on a card that has one, whose thread nothing opens", () => {
-    expect(isUnread(withLast("mate", 12, { requiresAttention: false }), {})).toBe(false);
-    expect(isUnread(crewCard("a1", { requiresAttention: false }), {})).toBe(false);
-  });
 
   it("records a later time only, and leaves the others as they were", () => {
     expect(readPatch({ "dark-mode": at(3) }, "fix-flaky-login", at(12))).toEqual({ "dark-mode": at(3), "fix-flaky-login": at(12) });
@@ -1383,11 +1181,29 @@ describe("a card's last message and unread dot", () => {
     const said = { id: "a1:1", from: "agent" as const, text: "Tests pass.", at: "" };
     expect(lastMessageLine(said, "Login fixer")).toBe("Login fixer: Tests pass.");
     expect(lastMessageLine(said, null)).toBe("Agent: Tests pass.");
-    expect(isUnread({ ...withLast("mate", 1), lastMessage: said }, {})).toBe(false);
   });
 
   it("keeps the read map in the display settings, empty by default", () => {
     expect(displaySettings.schema.parse({}).topicsRead).toEqual({});
+  });
+
+  it("reads a document an older version saved, without the layout it no longer has", () => {
+    const saved = {
+      columnOrder: ["done", "queued"],
+      boardColumns: "crew",
+      collapsedColumns: ["parked"],
+      chatWidthFraction: 0.4,
+      chatCollapsed: true,
+      boardCollapsed: false,
+      pollSeconds: 10,
+      hiddenChatKinds: ["tool"],
+      topicsRead: { "fix-flaky-login": at(12) },
+    };
+    expect(displaySettings.schema.parse(saved)).toEqual({
+      pollSeconds: 10,
+      hiddenChatKinds: ["tool"],
+      topicsRead: { "fix-flaky-login": at(12) },
+    });
   });
 });
 
@@ -1453,16 +1269,3 @@ function backlogItem(overrides: Partial<BacklogItem>): BacklogItem {
     ...overrides,
   };
 }
-
-describe("the header's counts", () => {
-  const cards = [
-    crewCard("a", { status: "running" }, "working"),
-    crewCard("b", { status: "idle" }, "blocked"),
-    crewCard("c", null, "queued"),
-  ];
-
-  it("count the seven columns' four headline ones, or the captain's four", () => {
-    expect(headerCounts(cards, "crew")).toEqual(["1 working", "1 blocked", "1 queued", "0 done"]);
-    expect(headerCounts(cards, "captain")).toEqual(["1 needs you", "1 working", "1 queued", "0 done"]);
-  });
-});

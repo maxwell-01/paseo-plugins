@@ -7,8 +7,6 @@
 import { defineSettings } from "@getpaseo/plugin";
 import { z } from "zod";
 
-import { COLUMN_IDS } from "./fleet";
-
 export const POLL_SECONDS = [3, 5, 10, 30] as const;
 
 /** What the chat can hide, in the order the settings screen lists them: each source of an injected message, then tool calls. */
@@ -19,19 +17,6 @@ export const displaySettings = defineSettings({
   scope: "host",
   version: 1,
   schema: z.object({
-    /** Board columns, in the order the captain arranged them. Unknown ids are dropped when read. */
-    columnOrder: z.array(z.string()).default([...COLUMN_IDS]),
-    /** "crew" draws the crew's seven columns; "captain" draws Needs you, Working, Queued and Done. */
-    boardColumns: z.enum(["crew", "captain"]).default("crew"),
-    /** Columns folded down to a narrow strip. */
-    collapsedColumns: z.array(z.string()).default([]),
-    /**
-     * The chat pane's share of the surface's width. A share rather than pixels,
-     * because it was chosen against one window and has to survive another.
-     */
-    chatWidthFraction: z.number().min(0.2).max(0.8).default(0.36),
-    chatCollapsed: z.boolean().default(false),
-    boardCollapsed: z.boolean().default(false),
     pollSeconds: z.number().int().min(1).max(120).default(5),
     /** Kinds of row the chat leaves out, from `CHAT_KINDS`. Cross-daemon messages are machine chatter, so hidden until asked for. */
     hiddenChatKinds: z.array(z.string()).default(["cross-daemon"]),
@@ -39,5 +24,3 @@ export const displaySettings = defineSettings({
     topicsRead: z.record(z.string(), z.string()).default({}),
   }),
 });
-
-export type DisplaySettings = z.infer<typeof displaySettings.schema>;

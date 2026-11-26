@@ -1,9 +1,8 @@
 /**
- * One card on the board: a crewmate, a backlog item, or both.
+ * One card in a workspace or agent panel: a crewmate, a backlog item, or both.
  *
- * Pressing the card opens its actions. The first one is the caller's: the
- * board watches the crewmate without leaving FirstMate, a panel beside a
- * workspace opens it in Paseo. Steering, interrupting and ending go to the
+ * Pressing the card opens its actions. The first one is the caller's: a panel
+ * beside a workspace opens the crewmate in Paseo. Steering, interrupting and ending go to the
  * crewmate directly; relaunching goes through the first mate, because it
  * owns the brief the new crewmate starts from. Ending archives the agent and
  * leaves its workspace and worktree exactly as they are.
@@ -88,14 +87,12 @@ export function CrewCard({
   opener,
   onChanged,
   toMate,
-  unread = false,
-  hideAnswer = false,
   startExpanded = false,
 }: {
   card: FleetCard;
   theme: PluginTheme;
   compact: boolean;
-  /** Null where the crewmate is already in view, or there is nowhere to open it. */
+  /** Null where there is nowhere to open the crewmate. */
   opener: CardOpener | null;
   /** Called after an action lands, so the board refreshes without waiting for its poll. */
   onChanged: () => void;
@@ -135,7 +132,6 @@ export function CrewCard({
       press: { padding: pad, gap: 6 },
       titleRow: { flexDirection: "row" as const, alignItems: "flex-start" as const, gap: 8 },
       title: { flex: 1, color: colors.foreground, fontSize: FONT_SIZE.body, fontWeight: "600" as const },
-      unreadDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5, backgroundColor: colors.accent },
       meta: { color: colors.foregroundMuted, fontSize: FONT_SIZE.caption },
       report: { color: colors.foreground, fontSize: FONT_SIZE.small, lineHeight: lineHeightFor(FONT_SIZE.small) },
       reportState: { color: tone, fontWeight: "600" as const },
@@ -202,7 +198,7 @@ export function CrewCard({
 
   const backlog = card.backlog;
   const actions = toMate === null ? [] : cardActions(card);
-  const answers = toMate !== null && !hideAnswer && isHeld(card);
+  const answers = toMate !== null && isHeld(card);
   const sending = toMate?.sending ?? false;
   const facts = [
     card.project,
@@ -221,7 +217,6 @@ export function CrewCard({
         style={[styles.press, answers ? { paddingBottom: 6 } : null]}
       >
         <View style={styles.titleRow}>
-          {unread ? <View accessibilityLabel="Unread" style={styles.unreadDot} /> : null}
           <Text style={styles.title}>{card.title}</Text>
           {agent === null ? null : <Chip theme={theme} text={agentStatusLabel(agent)} color={agentStatusTone(theme, agent)} />}
         </View>

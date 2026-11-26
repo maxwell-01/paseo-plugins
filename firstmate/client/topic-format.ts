@@ -1,5 +1,5 @@
 /**
- * What the Topics screen says about a card: the lines a topic card draws, who the topic talks to, which
+ * What the board says about a topic: the lines a topic card draws, who the topic talks to, which
  * finished topics the Done column shows, and an agent's conversation as a thread. Pure.
  */
 import type { FleetCard } from "../shared/fleet";
@@ -75,15 +75,15 @@ export function talkingTo(card: FleetCard): string {
   return agent === null ? "First mate" : `${agent.title ?? "Agent"} (${agent.id.slice(0, 8)})`;
 }
 
-/** What the Topics screen remembers a topic's read mark by: its backlog id, or its agent's id when it has none. */
+/** What the screen remembers a topic's read mark by: its backlog id, or its agent's id when it has none. */
 export function readKey(card: FleetCard): string | null {
   return card.taskId ?? card.agent?.id ?? null;
 }
 
 /**
  * Whether a topic has words the captain has not opened: its newest message is someone else's and newer
- * than the read mark. A card with no message to judge goes by its agent's own flag. Unlike `isUnread`, a
- * card with an agent is judged by its messages too, because this screen opens its thread and so reads it.
+ * than the read mark. A card with no message to judge goes by its agent's own flag. A card
+ * with an agent is judged by its messages too, because opening it shows its thread and so reads it.
  */
 export function topicUnread(card: FleetCard, read: Readonly<Record<string, string>>): boolean {
   const last = card.lastMessage;

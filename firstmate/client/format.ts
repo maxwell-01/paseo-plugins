@@ -12,23 +12,6 @@ import {
 import type { TopicMessage } from "../shared/topics";
 import { isHeld } from "./card-answer";
 
-export interface ColumnMeta {
-  id: ColumnId;
-  title: string;
-  /** Lucide icon name. */
-  icon: string;
-}
-
-export const COLUMNS: Readonly<Record<ColumnId, ColumnMeta>> = {
-  queued: { id: "queued", title: "Queued", icon: "Inbox" },
-  working: { id: "working", title: "Working", icon: "Hammer" },
-  blocked: { id: "blocked", title: "Blocked", icon: "Ban" },
-  parked: { id: "parked", title: "Parked", icon: "Clock" },
-  done: { id: "done", title: "Done", icon: "Check" },
-  failed: { id: "failed", title: "Failed", icon: "AlertTriangle" },
-  idle: { id: "idle", title: "Idle", icon: "CircleDot" },
-};
-
 /** The captain's four columns, in the one order they are drawn. */
 export const CAPTAIN_COLUMN_IDS = ["needs-you", "working", "queued", "done"] as const;
 export type CaptainColumnId = (typeof CAPTAIN_COLUMN_IDS)[number];
@@ -69,19 +52,6 @@ export function openId(card: FleetCard): string | null {
   return card.agent?.id ?? card.taskId;
 }
 
-/**
- * Whether the captain has something to read on a card: the first mate spoke last and its message is newer
- * than the one the captain last had open (`read`, topic id to seq). A card with an agent goes by the agent
- * alone, since it opens the agent's transcript and never the thread that would mark the topic read.
- */
-export function isUnread(card: FleetCard, read: Readonly<Record<string, string>>): boolean {
-  if (card.agent !== null) return card.agent.requiresAttention === true;
-  const last = card.lastMessage;
-  const topicId = card.backlog?.id;
-  if (last === null || last.from !== "mate" || topicId === undefined) return false;
-  return last.at > (read[topicId] ?? "");
-}
-
 /** The read map with `topicId` read up to the message said at `at`; null when it already was, so nothing is saved for it. */
 export function readPatch(
   read: Readonly<Record<string, string>>,
@@ -112,113 +82,6 @@ export function findOpenCard(cards: readonly FleetCard[], id: string, taskId: st
 export function lastMessageLine(message: TopicMessage, agentTitle: string | null = null): string {
   const who = message.from === "mate" ? "First mate" : message.from === "agent" ? agentTitle ?? "Agent" : "You";
   return `${who}: ${message.text.replace(/\s+/g, " ").trim()}`;
-}
-
-/** The counts under the screen's title, by the column layout the board is drawn in. */
-export function headerCounts(cards: readonly FleetCard[], layout: "crew" | "captain"): string[] {
-  if (layout === "captain") {
-    const groups = groupCaptainCards(cards);
-    const count = (id: CaptainColumnId) => groups.get(id)?.length ?? 0;
-    return [`${count("needs-you")} needs you`, `${count("working")} working`, `${count("queued")} queued`, `${count("done")} done`];
-  }
-  const groups = groupCards(cards);
-  const count = (id: ColumnId) => groups.get(id)?.length ?? 0;
-  return [`${count("working")} working`, `${count("blocked")} blocked`, `${count("queued")} queued`, `${count("done")} done`];
-}
-
-export function captainTone(theme: PluginTheme, column: CaptainColumnId): string {
-  switch (column) {
-    case "needs-you":
-      return theme.colors.statusWarning;
-    case "working":
-      return theme.colors.accent;
-    case "done":
-      return theme.colors.statusSuccess;
-    default:
-      return theme.colors.foregroundMuted;
-  }
-}
-
-/** The saved order, known ids only, followed by any column it does not mention. */
-export function orderedColumns(saved: readonly string[]): ColumnId[] {
-  const known = new Set<string>(COLUMN_IDS);
-  const kept = saved.filter((id): id is ColumnId => known.has(id));
-  const seen = new Set<string>(kept);
-  return [...new Set([...kept, ...COLUMN_IDS.filter((id) => !seen.has(id))])];
-}
-
-/**
- * Moves one column by `delta` places among the `shown` ones, clamped to the
- * ends, and returns the whole order. A column that is not shown keeps its place
- * relative to its neighbours, so hiding a column never loses where it goes; the
- * moved one lands just past the shown column it swaps with, so every press of an
- * arrow moves it on screen.
- */
-export function moveColumn(
-  order: readonly ColumnId[],
-  id: ColumnId,
-  delta: number,
-  shown: readonly ColumnId[] = order,
-): ColumnId[] {
-  const visible = order.filter((column) => shown.includes(column));
-  const from = visible.indexOf(id);
-  const to = Math.max(0, Math.min(visible.length - 1, from + delta));
-  const neighbour = visible[to];
-  if (from === -1 || to === from || neighbour === undefined) return [...order];
-  const next = order.filter((column) => column !== id);
-  const past = next.indexOf(neighbour);
-  next.splice(to < from ? past : past + 1, 0, id);
-  return next;
-}
-
-/** The suggestions card, which sits among the wide board's columns but is not one. */
-export const SUGGESTIONS_CARD = "suggestions";
-/** The watches card, likewise. */
-export const WATCHES_CARD = "watches";
-export type BoardItem<Column extends string = ColumnId> = Column | typeof SUGGESTIONS_CARD | typeof WATCHES_CARD;
-
-/**
- * What the wide board lays out: the suggestions card first, when the first mate
- * has any, then the shown columns, then the watches card when the home has any
- * watches. Each card counts toward `boardRows` like a column, but never folds or
- * moves.
- */
-export function boardItems<Column extends string>(
-  shown: readonly Column[],
-  hasSuggestions: boolean,
-  hasWatches = false,
-): BoardItem<Column>[] {
-  const items: BoardItem<Column>[] = hasSuggestions ? [SUGGESTIONS_CARD, ...shown] : [...shown];
-  if (hasWatches) items.push(WATCHES_CARD);
-  return items;
-}
-
-/** At most this many columns sit in one row; past it the board takes two. */
-const ONE_ROW_MAX = 3;
-
-/**
- * The wide board's rows: one for up to three columns, two past that, as even
- * as they go with the extra in the second — five are two over three, seven
- * three over four. Order runs across the first row and on into the second.
- */
-export function boardRows<T>(items: readonly T[]): T[][] {
-  return splitRows(items, items.length > ONE_ROW_MAX ? 2 : 1);
-}
-
-/** At most `rows` rows, as even as they go, with any extra in the later rows. */
-function splitRows<T>(items: readonly T[], rows: number): T[][] {
-  if (items.length === 0) return [];
-  const count = Math.min(Math.max(1, rows), items.length);
-  const base = Math.floor(items.length / count);
-  const longer = items.length % count;
-  const result: T[][] = [];
-  let start = 0;
-  for (let row = 0; row < count; row += 1) {
-    const size = row < count - longer ? base : base + 1;
-    result.push(items.slice(start, start + size));
-    start += size;
-  }
-  return result;
 }
 
 /**
@@ -341,15 +204,6 @@ export function relativeTime(iso: string, now: number = Date.now()): string {
   const hours = Math.round(minutes / 60);
   if (hours < 36) return `${hours}h ago`;
   return `${Math.round(hours / 24)}d ago`;
-}
-
-/**
- * What showing the Files view changes about the saved layout: a wide layout
- * whose right pane is hidden brings it back, or opening a file there would
- * draw nothing. A phone shows Files as a tab, and a shown pane needs nothing.
- */
-export function revealFilesPatch(compact: boolean, boardCollapsed: boolean): { boardCollapsed: false } | null {
-  return !compact && boardCollapsed ? { boardCollapsed: false } : null;
 }
 
 /** The last `max` characters of a path, from a separator, so the end — the part that differs — survives. */

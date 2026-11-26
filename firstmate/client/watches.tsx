@@ -5,7 +5,7 @@
  *
  * A watch's name opens its script in the Files view, which is where it is edited.
  *
- * Drawn as a card after the columns on a wide board, and at the foot of the Crew tab on a phone.
+ * Drawn as a view of its own, opened from the board's menu.
  */
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useRpc } from "@getpaseo/plugin/client";

@@ -1,5 +1,5 @@
 /**
- * One message of a thread on the Topics screen: who said it, over a bubble with the words. The captain's
+ * One message of a thread: who said it, over a bubble with the words. The captain's
  * sit on the right in the accent colour, everyone else's on the left.
  */
 import type { PluginTheme } from "@getpaseo/plugin";

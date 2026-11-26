@@ -1,7 +1,7 @@
 /**
  * Which user messages in the first mate's inbox are the captain's own words and which were put there by
  * something else — another daemon, another agent, Paseo, the board, a watch — and the one line that says
- * what each of the others is. Pure, and shared, because the chat, the crewmate's transcript and the topic
+ * what each of the others is. Pure, and shared, because the chat, a topic's thread and the topic
  * log all have to agree on it.
  */
 /**
