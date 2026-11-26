@@ -33,7 +33,7 @@ import { useMateSender } from "./mate-send";
 import { Markdown } from "./markdown";
 import { PermissionCard, usePendingRequests } from "./permission-card";
 import { transcriptRows, visibleRows, type TranscriptRow } from "./transcript-rows";
-import { IconButton, JumpToEnd, MONOSPACE, Spinner, errorText } from "./ui";
+import { CaptainBubble, IconButton, JumpToEnd, MONOSPACE, Spinner, errorText } from "./ui";
 import { useKeyboardOverlap } from "./keyboard";
 import { useAgentTimeline } from "./use-timeline";
 import { canAttachFiles, pickFiles, receiveFiles, type OfferedFile } from "./web";
@@ -232,15 +232,6 @@ export function MateChat({
       transcript: { flex: 1 },
       scroller: { flex: 1 },
       transcriptBody: { padding: compact ? 10 : 14, gap: 10 },
-      captain: {
-        alignSelf: "flex-end" as const,
-        maxWidth: "88%" as const,
-        backgroundColor: colors.surface2,
-        borderRadius: 10,
-        paddingHorizontal: 10,
-        paddingVertical: 7,
-      },
-      captainText: { color: colors.foreground, fontSize: FONT_SIZE.body, lineHeight: lineHeightFor(FONT_SIZE.body) },
       mate: { alignSelf: "stretch" as const },
       line: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6 },
       lineText: { flex: 1, color: colors.foregroundMuted, fontSize: FONT_SIZE.caption },
@@ -356,13 +347,7 @@ export function MateChat({
     const row = group.row;
     switch (row.kind) {
       case "captain":
-        return (
-          <View key={row.key} style={styles.captain}>
-            <Text selectable style={styles.captainText}>
-              {row.text}
-            </Text>
-          </View>
-        );
+        return <CaptainBubble key={row.key} theme={theme} text={row.text} />;
       case "mate":
         return (
           <View key={row.key} style={styles.mate}>

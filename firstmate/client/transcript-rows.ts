@@ -11,7 +11,7 @@
 import type { usePaseo } from "@getpaseo/plugin/client";
 
 import { classifyUserMessage, clip, type ChatSource } from "../shared/chat-messages";
-import { createTopicTracker } from "../shared/topics";
+import { splitTopicTag } from "../shared/topics";
 
 type PaseoApi = ReturnType<typeof usePaseo>;
 export type TimelinePage = Awaited<ReturnType<ReturnType<PaseoApi["agents"]["ref"]>["timeline"]["refetch"]>>;
@@ -150,29 +150,19 @@ export function transcriptRows(entries: readonly TimelineEntry[]): TranscriptRow
 }
 
 /**
- * Gives each row its topic by the rule the daemon files messages by, and takes a tag off the words it
- * filed. Before the empty replies are dropped, since a reply that was only a tag still sets the topic.
+ * Gives each row its topic: only a captain message or a joined reply that itself starts with a topic tag
+ * is filed, and its words are shown without the tag. Everything else — an untagged message, a tool call,
+ * an error, an injected note — stays in the chat. Before the empty replies are dropped, so that a reply
+ * of a tag alone is not left behind as a blank row in the chat.
  */
 function fileRows(rows: readonly RowBody[]): TranscriptRow[] {
-  const tracker = createTopicTracker();
   return rows.map((row) => {
-    switch (row.kind) {
-      case "captain": {
-        const { topicId, text } = tracker.captain(row.text);
-        // A tag with nothing after it was a message of attachments.
-        return { ...row, text: text.trim() === "" ? ATTACHMENTS_ONLY : text, topicId };
-      }
-      case "mate": {
-        const { topicId, text } = tracker.reply(row.text);
-        return { ...row, text, topicId };
-      }
-      case "event":
-        // Only a message something injected ends the topic; a notification or a compaction is no one speaking.
-        if (row.source !== "other") tracker.injected();
-        return { ...row, topicId: row.source === "other" ? tracker.current() : null };
-      default:
-        return { ...row, topicId: tracker.current() };
-    }
+    if (row.kind !== "captain" && row.kind !== "mate") return { ...row, topicId: null };
+    const tagged = splitTopicTag(row.text);
+    if (tagged === null) return { ...row, topicId: null };
+    // A tag with nothing after it on a captain message was a message of attachments.
+    const text = row.kind === "captain" && tagged.text.trim() === "" ? ATTACHMENTS_ONLY : tagged.text;
+    return { ...row, text, topicId: tagged.topicId };
   });
 }
 

@@ -41,56 +41,24 @@ export interface FilingItem {
   timestamp: string;
 }
 
-/** A message's topic, and its words once the tag is taken off. */
-export interface FiledText {
-  topicId: string | null;
-  text: string;
-}
-
 /**
- * The filing rule, one message at a time, for whoever walks the first mate's conversation in order. A
- * captain message with a tag sets the current topic; one without a tag, or a message something else
- * injected, clears it. A reply that starts with a tag is filed there and sets the current topic; any
- * other reply, and anything else in the conversation, takes the current topic.
- */
-export function createTopicTracker(): {
-  captain(text: string): FiledText;
-  injected(): void;
-  reply(text: string): FiledText;
-  current(): string | null;
-} {
-  let current: string | null = null;
-  return {
-    captain(text) {
-      const tagged = splitTopicTag(text);
-      current = tagged?.topicId ?? null;
-      return { topicId: current, text: tagged?.text ?? text };
-    },
-    injected() {
-      current = null;
-    },
-    reply(text) {
-      const tagged = splitTopicTag(text);
-      if (tagged !== null) current = tagged.topicId;
-      return { topicId: current, text: tagged?.text ?? text };
-    },
-    current: () => current,
-  };
-}
-
-/**
- * The messages of a conversation that belong to a topic, by `createTopicTracker`'s rule. Consecutive
- * assistant messages are joined first, since a streamed reply arrives in pieces. A reply with no topic is
- * not filed.
+ * The messages of a conversation that belong to a topic. A captain message with a tag sets the current
+ * topic; one without a tag, or a message something else injected, clears it. Consecutive assistant
+ * messages are joined first, since a streamed reply arrives in pieces; a joined reply that starts with a
+ * tag is filed there and sets the current topic, any other reply takes the current topic. A reply with no
+ * topic is not filed.
  */
 export function fileTopicMessages(items: readonly FilingItem[]): { topicId: string; message: TopicMessage }[] {
   const filed: { topicId: string; message: TopicMessage }[] = [];
-  const tracker = createTopicTracker();
+  let current: string | null = null;
   let reply: { text: string; seq: number; at: string } | null = null;
 
   function endReply(): void {
     if (reply === null) return;
-    const { topicId, text } = tracker.reply(reply.text);
+    const tagged = splitTopicTag(reply.text);
+    const topicId = tagged?.topicId ?? current;
+    const text = tagged?.text ?? reply.text;
+    if (tagged !== null) current = tagged.topicId;
     if (topicId !== null && text.trim() !== "") {
       filed.push({ topicId, message: { seq: reply.seq, from: "mate", text, at: reply.at } });
     }
@@ -106,13 +74,10 @@ export function fileTopicMessages(items: readonly FilingItem[]): { topicId: stri
     endReply();
     if (item.type !== "user_message") continue;
     const text = item.text ?? "";
-    if (classifyUserMessage(text, item.clientMessageId) !== null) {
-      tracker.injected();
-      continue;
-    }
-    const { topicId, text: words } = tracker.captain(text);
-    if (topicId !== null) {
-      filed.push({ topicId, message: { seq: item.seqStart, from: "captain", text: words, at: item.timestamp } });
+    const tagged = classifyUserMessage(text, item.clientMessageId) === null ? splitTopicTag(text) : null;
+    current = tagged?.topicId ?? null;
+    if (tagged !== null) {
+      filed.push({ topicId: tagged.topicId, message: { seq: item.seqStart, from: "captain", text: tagged.text, at: item.timestamp } });
     }
   }
   endReply();
