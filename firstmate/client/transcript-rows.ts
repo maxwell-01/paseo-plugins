@@ -11,6 +11,7 @@
 import type { usePaseo } from "@getpaseo/plugin/client";
 
 import { classifyUserMessage, clip, type ChatSource } from "../shared/chat-messages";
+import { createTopicTracker } from "../shared/topics";
 
 type PaseoApi = ReturnType<typeof usePaseo>;
 export type TimelinePage = Awaited<ReturnType<ReturnType<PaseoApi["agents"]["ref"]>["timeline"]["refetch"]>>;
@@ -18,12 +19,15 @@ export type TimelineEntry = TimelinePage["entries"][number];
 type TimelineItem = TimelineEntry["item"];
 type ToolCallItem = Extract<TimelineItem, { type: "tool_call" }>;
 
-export type TranscriptRow =
+type RowBody =
   | { key: string; kind: "captain"; text: string }
   | { key: string; kind: "mate"; text: string }
   | { key: string; kind: "event"; text: string; source: ChatSource | "other" }
   | { key: string; kind: "tool"; text: string; status: ToolCallItem["status"] }
   | { key: string; kind: "error"; text: string };
+
+/** A row, and the backlog item the conversation was about when it was said; null for the general chat. */
+export type TranscriptRow = RowBody & { topicId: string | null };
 
 /** One line for a tool call: what it did, in the fewest words its detail allows. */
 export function toolSummary(item: ToolCallItem): string {
@@ -57,6 +61,8 @@ export function toolDisplayName(name: string): string {
   return name.replace(/^mcp__[^_]+__/, "").replace(/_/g, " ");
 }
 
+/** What the chat says of a captain message that has no words. */
+const ATTACHMENTS_ONLY = "(attachments)";
 const COMPACTING = "Compacting context…";
 
 /**
@@ -93,7 +99,7 @@ export function rowKey(entry: TimelineEntry): string {
  * a streamed reply can arrive in several pieces that split anywhere.
  */
 export function transcriptRows(entries: readonly TimelineEntry[]): TranscriptRow[] {
-  const rows: TranscriptRow[] = [];
+  const rows: RowBody[] = [];
   entries.forEach((entry) => {
     const key = rowKey(entry);
     const item = entry.item;
@@ -101,7 +107,7 @@ export function transcriptRows(entries: readonly TimelineEntry[]): TranscriptRow
       case "user_message": {
         const injected = classifyUserMessage(item.text, item.clientMessageId);
         // A message of attachments alone has no words; the row still says the captain sent something.
-        const text = item.text.trim() === "" ? "(attachments)" : item.text;
+        const text = item.text.trim() === "" ? ATTACHMENTS_ONLY : item.text;
         rows.push(
           injected === null
             ? { key, kind: "captain", text }
@@ -140,7 +146,34 @@ export function transcriptRows(entries: readonly TimelineEntry[]): TranscriptRow
         break;
     }
   });
-  return rows.filter((row) => row.kind !== "mate" || row.text.trim() !== "");
+  return fileRows(rows).filter((row) => row.kind !== "mate" || row.text.trim() !== "");
+}
+
+/**
+ * Gives each row its topic by the rule the daemon files messages by, and takes a tag off the words it
+ * filed. Before the empty replies are dropped, since a reply that was only a tag still sets the topic.
+ */
+function fileRows(rows: readonly RowBody[]): TranscriptRow[] {
+  const tracker = createTopicTracker();
+  return rows.map((row) => {
+    switch (row.kind) {
+      case "captain": {
+        const { topicId, text } = tracker.captain(row.text);
+        // A tag with nothing after it was a message of attachments.
+        return { ...row, text: text.trim() === "" ? ATTACHMENTS_ONLY : text, topicId };
+      }
+      case "mate": {
+        const { topicId, text } = tracker.reply(row.text);
+        return { ...row, text, topicId };
+      }
+      case "event":
+        // Only a message something injected ends the topic; a notification or a compaction is no one speaking.
+        if (row.source !== "other") tracker.injected();
+        return { ...row, topicId: row.source === "other" ? tracker.current() : null };
+      default:
+        return { ...row, topicId: tracker.current() };
+    }
+  });
 }
 
 /**

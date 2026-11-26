@@ -92,6 +92,8 @@ export const BacklogItemSchema = z.object({
   agentId: z.string().nullable(),
   hold: z.string().nullable(),
   actions: z.array(CardActionSchema),
+  /** What the first mate wrote in each `(note: …)` group on the item's line, in order. */
+  notes: z.array(z.string()),
   blockedBy: z.string().nullable(),
   since: z.string().nullable(),
   url: z.string().nullable(),

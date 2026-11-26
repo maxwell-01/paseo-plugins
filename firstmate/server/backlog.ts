@@ -161,6 +161,10 @@ function parseItem(section: BacklogSection, line: string): BacklogItem | null {
   // `blocked-by: x` is written bare as often as in parentheses.
   const bareBlocker = /\bblocked-by:\s*([\w.-]+)/i.exec(body.replace(GROUP, ""));
 
+  const notes = [...body.matchAll(GROUP)].flatMap((match) =>
+    match[1]?.toLowerCase() === "note" && (match[2] ?? "").trim() !== "" ? [(match[2] ?? "").trim()] : [],
+  );
+
   const withoutGroups = body.replace(GROUP, "").replace(OUTCOME, "").replace(SINCE, "").trim();
   const head = ID_AND_TITLE.exec(withoutGroups);
   const id = head?.[1] ?? withoutGroups.split(/\s+/)[0] ?? "";
@@ -187,6 +191,7 @@ function parseItem(section: BacklogSection, line: string): BacklogItem | null {
     agentId: field(groups, "agent", "crewmate"),
     hold: field(groups, "hold"),
     actions,
+    notes,
     blockedBy: field(groups, "blocked-by") ?? bareBlocker?.[1] ?? null,
     since: field(groups, "since") ?? SINCE.exec(body)?.[1]?.trim() ?? null,
     url,
