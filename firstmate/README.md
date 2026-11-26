@@ -8,13 +8,15 @@ collides. The first mate writes each worker's instructions, supervises it to the
 finished pull requests, investigation findings, and only the decisions that are really yours. You are
 the captain.
 
-A **FirstMate** panel in the sidebar puts the conversation with the first mate beside a board of its
-crew — Queued, Working, Blocked, Parked, Done, Failed and Idle — with each worker's last word on what
-it is doing and a link to its pull request. The sidebar row shows how many workers are working or idle.
+**FirstMate**, in the sidebar, opens a board of what you and the first mate are talking about, one
+topic per task — Needs you, Working, Queued and Done — with the question a topic waits on you for, or
+the last thing said about it. Open a topic to read and answer it; the conversation with the first mate
+is one switch away. The sidebar row shows how many topics wait on you.
 
-![A 30-second loop of FirstMate at work, zooming in on each step: one message to the first mate asks
-for a dark mode toggle and a speed-conversion fix in a small web app; two cards appear in Queued and
-move to Working, each worker in its own worktree; one worker is watched live, its commands and edits
+![A 30-second loop of FirstMate at work, recorded on an earlier version of the screen, zooming in on
+each step: one message to the first mate asks
+asks for a dark mode toggle and a speed-conversion fix in a small web app; two cards appear in Queued
+and move to Working, each worker in its own worktree; one worker is watched live, its commands and edits
 scrolling past; each card reaches Done with "Captain's call: land branch …" beside the first mate's
 report; the message "land both" sends them to main, and the first mate's Bearings report, with both
 cards marked landed, closes it out.](docs/demo.webp)
@@ -31,13 +33,13 @@ There is nothing else to install.
 - Paseo **0.16 or newer**, on the daemon and on the device running the app. On Paseo 0.11 to 0.15,
   install the last release that supports them: `paseo plugin install npm:@gpambrozio/paseo-firstmate@0.4.2`.
 - **Paseo's agent tools turned on.** They are how the first mate starts its workers and hears back from
-  them, and Paseo ships with them off. The panel says so and turns them on with one press; it is the
+  them, and Paseo ships with them off. The screen says so and turns them on with one press; it is the
   *Agent tools* switch in the FirstMate settings too.
 - A capable model for the first mate. It spends its day reading records and deciding who does what,
   and a small model gets the tools wrong. Claude Sonnet or better, or a comparable Codex model, works.
 - The `paseo` command on the daemon machine, which a Paseo install puts there. It is used to find the
-  plugin's own files, to interrupt a worker from the board, and to name the first mate's project in
-  Paseo's sidebar.
+  plugin's own files, to interrupt a worker from its FirstMate tab, and to name the first mate's project
+  in Paseo's sidebar.
 
 ## Install
 
@@ -56,8 +58,8 @@ charter, the records it starts with, the home's icon — is in `templates/`, as 
    If you already started an agent for the job, adopt it from the list below the button instead.
 2. Tell it about a project: "the web app is at ~/code/web — ship through pull requests". It keeps a
    registry, so you only say this once.
-3. Ask for work: "fix the flaky login test and add dark mode". Two workers appear on the board, each in
-   its own worktree. Minutes later:
+3. Ask for work: "fix the flaky login test and add dark mode". Two topics appear on the board, each
+   with a worker in its own worktree. Minutes later:
 
    > PR ready for review, captain: https://github.com/you/web/pull/42 (fix the flaky login test - risk: low - CI green)
 
@@ -65,11 +67,12 @@ charter, the records it starts with, the home's icon — is in `templates/`, as 
 
 ## Talking to the first mate
 
-- The chat in the panel — Enter sends and Shift+Enter starts a new line, as in Paseo — or open the
-  first mate in Paseo for the whole session, every tool call and its output. The chat follows new
-  messages while you are at the bottom; scroll up to read, and the round button at the bottom brings
-  you back. A file in the home that the first mate names in a reply is a link that opens it in the
-  Files view.
+- **General chat**, the other side of the **Board** switch in the screen's header — Enter sends and
+  Shift+Enter starts a new line, as in Paseo. It is your conversation with the first mate without the
+  messages filed under a topic. **Open the first mate in Paseo**, in the **More** menu, shows the whole
+  session, every tool call and its output. The chat follows new messages while you are at the bottom;
+  scroll up to read, and the round button at the bottom brings you back. A file in the home that the
+  first mate names in a reply is a link that opens it in the Files view.
 - **How full its memory is** — the ring at the end of the chat's buttons shows how much of the first
   mate's context window is used, the way Paseo's own chat does: amber from 70%, red past 90%. Hover
   over it, or tap it on a phone, for the share and the token counts.
@@ -79,7 +82,8 @@ charter, the records it starts with, the home's icon — is in `templates/`, as 
   Paseo's history, and workers already running keep going — the new first mate checks on them
   regularly, since Paseo tells only the agent that started a worker when it finishes.
 - **Questions it asks you** — which option, whether to go ahead, a plan to approve — appear in the
-  chat as a form you answer there, the same as in the first mate's own tab.
+  chat as a form you answer there, the same as in the first mate's own tab. While the chat is not in
+  view, a banner says the first mate is waiting, and its **Show** button opens the chat.
 - **`/fm <message>`** in any composer sends the message to the first mate, from wherever you are.
 - **`/bearings`** — where everything stands, in four sections: what needs your call, what landed,
   what is under way, and what is next. `/bearings file` also writes it to a dated report in the first
@@ -88,40 +92,82 @@ charter, the records it starts with, the home's icon — is in `templates/`, as 
   recommendation.
 - *Bearings* and *Ahoy* are also buttons above the chat, and *FirstMate: bearings* is in ⌘K.
 - **Suggestions** — when the first mate has an idea of what you will want next ("Land web#42", "Review
-  loop on web#42"), it shows as a button: on a wide screen in a card before the board's columns, on a
-  phone in a Suggestions tab after First mate. Pressing one sends that request to the first mate right
-  away, just as if you had typed it and pressed Send, and brings the chat into view so you see it go
-  out; anything you were typing stays in the message box. A suggestion too long to show whole gets a
-  chevron that opens the full request below it, to read or copy, without sending it. The trash button
-  beside a suggestion takes it off the list without sending it, and FirstMate remembers that: the first
-  mate will not suggest it again, and the board hides it if it does. When something about it changes —
-  a new pull request, say — the first mate can suggest it again in new words, and that shows. With no
-  suggestions there is no card and no tab.
-- **Answering the captain's call** — a card waiting on your decision ("Captain's call: merge web#42?")
-  shows the first mate's likely answers to it as buttons under that line ("Merge", "Hold"). Pressing one
-  sends that answer to the first mate right away, the same way a suggestion does. Under them, every
-  waiting card has an Answer box: type what you want, in your own words, and Send; it reaches the first
-  mate with the task's name in front, so it knows which decision you mean.
-
-![After the voyage: the first mate's Bearings report in the chat — Captain's Call: nothing needs your
-action; Recently Landed: the knots fix and the dark mode toggle, both landed on main; Underway and
-Charted Next: nothing — beside the board, where both cards sit in Done marked "landed".](docs/landed.png)
+  loop on web#42"), it is a button in the **Suggestions** view, which **More** in the header opens; the
+  menu shows how many there are. Pressing one sends that request to the first mate right away, just as
+  if you had typed it and pressed Send, and shows the general chat so you see it go out; anything you
+  were typing stays in the message box. A suggestion too long to show whole gets a chevron that opens
+  the full request below it, to read or copy, without sending it. The trash button beside a suggestion
+  takes it off the list without sending it, and FirstMate remembers that: the first mate will not
+  suggest it again, and the list hides it if it does. When something about it changes — a new pull
+  request, say — the first mate can suggest it again in new words, and that shows.
+- **Answering the captain's call** — a topic waiting on your decision ("merge web#42?") sits in *Needs
+  you* and shows the first mate's likely answers to it as buttons under the question ("Merge", "Hold").
+  Pressing one sends that answer to the first mate right away, filed under the topic. To answer in your
+  own words, open the topic and use its reply box.
 
 ## The board
 
-![The FirstMate panel mid-voyage: the first mate's chat on the left explaining the two workers it sent
-off; on the right the board, with "Add a dark mode toggle to the header" in Working, its card open on
-Watch, Steer, Interrupt, Relaunch and End, and "Fix knots-to-km/h conversion and add a test" in Done,
-reading "Done: ready in branch fm/fix-knots-kmh" and "Captain's call: land branch
-fm/fix-knots-kmh".](docs/board.png)
+![The FirstMate screen: the header with the Board / General chat switch and the More menu, over four
+columns across the window — Needs you, Working, Queued and Done. Each card has a title, its project
+and a date; the cards in Needs you show their question in amber with the answer buttons under it, and
+the cards in the other columns show one line of the last message.](docs/board.png)
 
-Each card is a worker, a backlog item, or both. Press one for its actions:
+The FirstMate screen opens on the board: every backlog item and every worker is a topic, in one of
+four columns across the window.
 
-- **Watch** — the worker's card beside everything it is doing, live, in place of the board: the brief
-  it was given, its reasoning, each command and file it touched (press one for what it ran and what
-  came back), its plan, and its replies. Anything it is waiting on — a question, a permission — is
-  answered there. The chat with the first mate stays beside it; **Crew** takes you back to the board,
-  and **Open in Paseo** shows the worker's whole session.
+- **Needs you** — a topic that waits on your decision, or whose worker is blocked, has failed or asks
+  for a permission. Its card shows the question and the first mate's answer buttons.
+- **Working** — a topic whose worker is at work, or at rest between turns.
+- **Queued** — a topic that has not started.
+- **Done** — the 10 newest finished topics, with a count of the older ones.
+
+A card outside *Needs you* shows one line of the last thing said. A dot beside a title means there are
+words you have not opened. On a phone the columns are one list, without *Done*.
+
+The header has the **Board** / **General chat** switch, the **More** menu and the host's name. **More**
+opens what you look at now and then, in the board's place: **Suggestions**, **Watches** and **Files**.
+It also has **Open the first mate in Paseo**, **Refresh** and **FirstMate settings**. A back button
+returns to the board from a topic or from one of those views. **General chat** has a dot when the
+first mate has said something you have not had on screen, and the header says what the first mate is
+doing when it is not idle. Problems show as banners under the
+header: Paseo's agent tools switched off, a first mate that is gone, a charter that has changed.
+
+Opening the screen counts as looking at the first mate: when it has finished a turn, its workspace in
+Paseo's sidebar turns to done, as it would if you had opened the first mate itself. One waiting on
+your permission stays flagged until you answer.
+
+## Topics
+
+Click a card to open its topic.
+
+![An open topic: the messages on the left, each under who said it; below them the reply box, with a
+line that says who gets the message; and the details panel on the right.](docs/topic.png)
+
+- **The messages** are on the left, each with who said it, yours on the right. A topic without a worker
+  shows what you and the first mate said about that backlog item. A topic with a worker shows that
+  too, and what you and the worker said to each other, without the worker's tool calls.
+- **The reply box** under them says who gets what you type: the topic's worker when it has one, else
+  the first mate. A message to the first mate goes out as `[topic: <id>] …`, the first mate starts its
+  reply with the same tag, and both are filed under the topic. They do not appear in the general chat.
+  A tagged message about an item that is no longer on the board stays in the general chat with its tag.
+  A message to a worker counts as coming from you, and the first mate is told what you said and what
+  the worker answered.
+- **A worker's questions and permission requests** appear at the end of the messages, and you answer
+  them there, the same as in the worker's own tab.
+- **The details** are on the right (behind **Details** on a phone): status, project, who the topic
+  talks to, since when, links, what it waits for with its answer buttons, the first mate's notes and
+  the backlog id. **Open agent in Paseo** shows the worker's whole session, every tool call included.
+
+The messages filed under a topic are kept by the plugin on the daemon, the newest 200 per item.
+Messages from before the tag existed are not filed. What you have read is shared by every device you
+use.
+
+## A worker's FirstMate tab
+
+A worker's workspace and session in Paseo also get a **FirstMate** tab showing its card, with a box for
+telling the first mate something about it. Press the card for its actions:
+
+- **Open** — the worker's session in Paseo.
 - **Steer** — a word straight to the worker. It counts as coming from you, and the first mate is told
   what you said and what the worker answered.
 - **Interrupt** — stops the worker's current turn.
@@ -129,63 +175,12 @@ Each card is a worker, a backlog item, or both. Press one for its actions:
   on disk carries over; the conversation does not.
 - **End** — archives the worker. Its workspace and worktree are left exactly as they are.
 
-![Watching a worker: the chat with the first mate stays on the left; in the board's place, the worker's
-card with its actions beside its live transcript — the brief it was given, then Read, Edit and Shell
-rows for each step (npm test among them), its notes between them, and a spinner on the step under
-way.](docs/watch.png)
-
-A column with nobody in it is hidden, so the board shows only what has workers in it. On a wide
-screen up to three columns sit side by side; past three they take two rows, with the extra one in the
-second row. Columns fold to a strip and move with the arrows in their headers, and the split between
-chat and board drags. The layout is remembered, including where a hidden column goes when it fills
-again.
-
-Opening the panel counts as looking at the first mate: when it has finished a turn, its workspace in
-Paseo's sidebar turns to done, as it would if you had opened the first mate itself. One waiting on
-your permission stays flagged until you answer.
-
-A worker's workspace and session also get a **FirstMate** tab showing its card, with a box for telling
-the first mate something about it.
-
-## The Topics screen
-
-**Topics**, in the sidebar, is the same backlog as a board of what you and the first mate are talking
-about. Its badge counts the topics that wait on you.
-
-- **Board**: *Needs you*, *Working*, *Queued* and *Done* across the whole window. A topic that needs
-  you shows its question and the first mate's answer buttons; any other shows the last thing said. A dot
-  means there are words you have not opened. *Done* shows the 10 newest. On a phone the columns are one
-  list, without *Done*.
-- **A topic**: click a card. Its messages are on the left, with the box that sends the next one and
-  says who gets it: the topic's own agent when it has one, else the first mate, tagged with the topic.
-  Its details are on the right (behind **Details** on a phone): status, project, who it talks to, links,
-  what it waits for, the first mate's notes.
-- **General chat**: your conversation with the first mate, without the messages filed under a topic.
-
-The FirstMate screen stays as it is, with the crew's columns, the files, the suggestions and the watches.
-
-## Topics
-
-Every card can be opened. A card with a worker opens **Watch**; one without opens its **thread**: the
-messages you and the first mate exchanged about that backlog item, with the card beside it (above it on
-a phone). The box under the thread says who gets what you type. A message to the first mate goes out as
-`[topic: <id>] …`, the first mate starts its reply with the same tag, and the board files both under the
-card. They do not appear in the chat, which keeps only general conversation. A tagged message about an item
-that has its own worker, or that is no longer on the board, stays in the chat with its tag. A worker's card
-has the same box under its transcript, and sends to the worker directly. On a phone, sending from a card
-keeps you on it.
-
-A card with no status line shows the last message of its thread, or what its worker last said, and a dot beside its title means the
-first mate has written something you have not opened yet. Messages are kept by the plugin on the
-daemon, the newest 200 per item. Messages from before the tag existed are not filed.
-
-In **Settings › FirstMate** you can show four columns (*Needs you*, *Working*, *Queued*, *Done*)
-instead of seven, and hide cross-daemon messages, messages from other agents, notices, watch output or
-tool calls in the chat.
+A card waiting on your decision also has the first mate's answer buttons, and an Answer box for your
+own words.
 
 ## The first mate's home
 
-The **Files** view — next to the crew board, or its own tab on a phone — shows everything in the home
+The **Files** view — **More › Files** in the screen's header — shows everything in the home
 and opens any text file for editing, with a preview for Markdown. Cmd/Ctrl+S saves on a desktop. The
 first mate writes these files too, so a save never silently replaces its newer version: you are told
 it changed, and choose to load theirs or overwrite it with yours.
@@ -204,8 +199,8 @@ settings, and your choice is kept.
   edit it here.
 - `data/charter.md` — **the charter itself, yours to change.** It starts as FirstMate's own charter, and
   while you leave it alone, a new version of the plugin brings its improvements. Once you edit it, your
-  version is kept; if FirstMate's charter changes after that, the board tells you, **Compare** opens the
-  new one beside yours (`data/charter.new.md`) and **Done** marks yours up to date. Saving it in the panel
+  version is kept; if FirstMate's charter changes after that, a banner tells you, **Compare** opens the
+  new one beside yours (`data/charter.new.md`) and **Done** marks yours up to date. Saving it in the Files view
   rewrites `AGENTS.md` at once; the first mate reads it at its next session, or when you ask it to re-read
   its charter. The note at the top lists the `{{placeholders}}` filled in for you, notes between `<!--`
   and `-->` are left out, and an empty file goes back to FirstMate's charter.
@@ -224,9 +219,10 @@ settings, and your choice is kept.
   - `+yolo` after the mode lets the first mate merge green work on that project without asking.
 - `data/backlog.md` — every task, in flight, queued and done. The board reads it.
 - `data/suggestions.md` — what the first mate thinks you will want next, one per line as
-  `- <label> :: <what to send>`. The first mate keeps it up to date; the board turns it into buttons.
-- `data/suggestions-dismissed.md` — the suggestions you removed from the board, the newest 50. The
-  board hides any suggestion with the same words, and the first mate reads it before writing new ones.
+  `- <label> :: <what to send>`. The first mate keeps it up to date; the Suggestions view turns it into
+  buttons.
+- `data/suggestions-dismissed.md` — the suggestions you removed from the list, the newest 50. The
+  list hides any suggestion with the same words, and the first mate reads it before writing new ones.
   Delete a line to let that suggestion show again.
 - `data/<task>/brief.md`, `data/<task>/report.md` — each worker's instructions, and an investigation's
   findings.
@@ -252,11 +248,11 @@ closed, gets a review or a comment from someone else, or its checks go red or gr
 you merge on GitHub is cleaned up within minutes, and a maintainer's review reaches the worker without
 you passing it on. It needs the `gh` command, logged in, and Node, on the machine Paseo runs on.
 
-A **Watches** card after the board's columns — at the bottom of the Crew tab on a phone — lists each
-watch with its schedule, when it last ran and what came of it, and what it last said (press it to read
-it all). Its switch turns a watch off or on without touching the script, and a watch's name opens the
-script in the Files view. A watch that fails is reported
-to the first mate once, and shown on the card until it works again.
+The **Watches** view — **More › Watches** in the screen's header — lists each watch with its schedule,
+when it last ran and what came of it, and what it last said (press it to read it all). Its switch
+turns a watch off or on without touching the script, and a watch's name opens the script in the Files
+view. A watch that fails is reported to the first mate once, and shown in the list until it works
+again.
 
 To write your own, put an executable script in `watches/` with its schedule in a comment near the top,
 crontab style, in the Mac's local time:
@@ -268,12 +264,12 @@ crontab style, in the Mac's local time:
 
 `watches/README.md` in the home has the details: the schedule syntax, and what a script is given to find
 the home, the backlog, and a folder of its own to remember what it has already reported. Until you edit
-`pr-watch`, a new version of FirstMate replaces it; once you have, yours is kept, and the card says when
+`pr-watch`, a new version of FirstMate replaces it; once you have, yours is kept, and the list says when
 FirstMate's has changed. The first mate adds or changes a watch only when you say so.
 
 ## Settings
 
-**Settings › Plugins › FirstMate** — or the gear in the panel's header, or *FirstMate settings* in ⌘K.
+**Settings › Plugins › FirstMate** — or *FirstMate settings* in the screen's **More** menu or in ⌘K.
 
 - **First mate** — which agent it is, and *Release* to forget it (the agent keeps running).
 - **Home directory** — where the first mate lives. It can be moved only while no first mate is aboard.
@@ -281,6 +277,8 @@ FirstMate's has changed. The first mate adds or changes a watch only when you sa
   task. "Let the first mate choose" gives workers its own model.
 - **Agent tools** — Paseo's switch, described above.
 - **Refresh every** — how often the board polls.
+- **Hide in the chat** — leaves cross-daemon messages, messages from other agents, notices, watch
+  output or tool calls out of the general chat.
 
 ## Limitations
 
@@ -288,18 +286,20 @@ FirstMate's has changed. The first mate adds or changes a watch only when you sa
   requests, but merging needs your word (or `+yolo` on that project), and a worker's worktree is only
   cleaned up after its work has landed.
 - **A worker you prompt by hand** in its own tab is not watched by anyone until the first mate next
-  reviews the fleet (it keeps a half-hourly check while work is under way). Steer from the board
-  instead, and the first mate hears about it.
+  reviews the fleet (it keeps a half-hourly check while work is under way). Write to it from its
+  topic's reply box instead, and the first mate hears about it.
 - **The first mate's model, thinking and mode** are changed from its own tab in Paseo, not from the
   board.
-- **Attachments** — images, files — go to the first mate from its own tab, not from the panel's chat.
-- **Watch shows a worker's latest activity**, not its whole history; a long-running worker's earlier
-  work is in its own session in Paseo.
+- **Attachments** — images, files — go to the first mate from its own tab, not from the general chat.
+- **A topic shows the latest of what you and its worker said**, not the whole history, and none of the
+  worker's tool calls; the rest is in the worker's own session in Paseo.
+- **The board has no Steer, Interrupt, Relaunch or End.** A topic's reply box writes to its worker; the
+  other three are on the FirstMate tab in the worker's workspace and session.
 - It does not reproduce firstmate's second mates, relay to X and Discord, away mode, or the
   `no-mistakes` pipeline (`reviewed-PR` stands in for the last).
 - **Watches run only while Paseo does**, and a run missed while the Mac was asleep is not made up. After
-  the plugin is reloaded, what a watch prints waits until any agent works or the panel is opened.
-- The panel has not yet been checked on a phone.
+  the plugin is reloaded, what a watch prints waits until any agent works or the screen is opened.
+- The screen has not yet been checked on a phone.
 
 ## License
 

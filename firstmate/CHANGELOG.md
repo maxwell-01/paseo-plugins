@@ -7,6 +7,48 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Every version
 as `@gpambrozio/paseo-firstmate` and tagged here, so a version is something to install and a line to
 read before you move.
 
+## [0.8.0] — 2026-11-26
+
+One screen. The FirstMate screen is now the Topics board, and the Topics row is gone.
+
+### Changed
+
+- **The FirstMate screen is the board of topics.** It opens on *Needs you*, *Working*, *Queued* and
+  *Done*. A switch in its header goes between **Board** and **General chat**, a click on a card opens
+  the topic, and a back button returns to the board. On a phone the board is one list, without *Done*.
+- **Suggestions, Watches and Files are in the More menu** in the header. Each opens in the board's
+  place. They are no longer a card on the board, a pane beside it or a tab on a phone. Pressing a
+  suggestion still sends it to the first mate and then shows the general chat. A watch's name still
+  opens its script in Files, and a file link in the general chat opens the file there.
+- The More menu also has **Open the first mate in Paseo**, **Refresh** and **FirstMate settings**.
+- **The sidebar badge counts the topics that wait on you**, in the warning colour. It used to count the
+  workers that were working or idle.
+- An answer button on the board sends its prompt under the topic's tag, so the answer is filed with
+  the topic. The buttons on a worker's FirstMate tab send it as before.
+- When the first mate waits for your answer and its chat is not in view, the banner's **Show** button
+  opens the general chat.
+- **General chat** in the header's switch has a dot when the first mate has said something you have not
+  had on screen. The first mate is marked as seen when its chat is open, not whenever the screen is.
+- The header says what the first mate is doing only when it is not idle: working, starting, errored or
+  waiting on a permission.
+
+### Added
+
+- **A worker's questions and permission requests in its topic.** A topic with its own agent shows what
+  that agent waits for at the end of the topic's messages, and you answer it there. **Open agent in
+  Paseo** still shows the full session.
+
+### Removed
+
+- **The Topics row in the sidebar and Open Topics in ⌘K.** *Open FirstMate* opens the board.
+- **The chat beside the board**, with its drag handle and its hide buttons.
+- **The seven crew columns**, their arrows and folding, and the **Columns** setting.
+- **Watch**, the worker's transcript with its tool calls. A topic shows what you and the worker said;
+  the rest is in the worker's own session in Paseo.
+- **Steer, Interrupt, Relaunch and End on the FirstMate screen.** A topic's reply box sends to its
+  worker. The FirstMate tab in a worker's workspace and session keeps the worker's card with all four
+  buttons.
+
 ## [0.7.0] — 2026-11-26
 
 A screen of its own for what you and the first mate are talking about.
