@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { CREW_LABELS, FirstmateConfigSchema, type AgentSummary, type BacklogItem } from "../shared/fleet";
 import { parseBacklog } from "./backlog";
-import { ReportCache, backlogColumn, buildCards, closingText, crewColumn, loadFleet } from "./fleet";
+import { ReportCache, backlogColumn, buildCards, closingText, crewColumn, loadFleet, ownAgentIds } from "./fleet";
 import type { PaseoApi, TimelineItem } from "./host-types";
 import type { TopicLog } from "./topic-log";
 
@@ -138,6 +138,24 @@ describe("buildCards' last message", () => {
   });
 });
 
+describe("ownAgentIds", () => {
+  const OWN = "3f2a9c1e-5b7d-4e8a-9c0f-1a2b3c4d5e6f";
+  const backlog = parseBacklog(`## In flight
+- [ ] own - Has its own agent (agent: ${OWN})
+- [ ] crewed - Already on the crew (agent: a1)
+- [ ] prefix - A prefix only (agent: 3f2a9c1e)
+- [ ] remote - Another daemon (agent: ${OWN.replace("3f2a", "9999")} on srv_abc)
+## Done
+- [x] finished - Done long ago (agent: 0a1b2c3d-5b7d-4e8a-9c0f-1a2b3c4d5e6f)
+`);
+
+  it("names the full UUIDs of unfinished items that no crewmate already covers, once each", () => {
+    expect(ownAgentIds(backlog, new Set(["a1"]))).toEqual([OWN]);
+    expect(ownAgentIds([...backlog, ...backlog], new Set())).toEqual([OWN]);
+    expect(ownAgentIds(backlog, new Set([OWN]))).toEqual([]);
+  });
+});
+
 describe("closingText", () => {
   it("joins the assistant messages that end the timeline, skipping late notices", () => {
     const items = [
@@ -173,5 +191,39 @@ describe("loadFleet's topics", () => {
 
     expect(fleet.warnings).toEqual(["The topics could not be filed: disk full"]);
     expect(fleet.mate?.id).toBe("m1");
+  });
+
+  it("draws an unfinished item's own live agent as its card's agent, and ignores one Paseo has gone", async () => {
+    const OWN = "3f2a9c1e-5b7d-4e8a-9c0f-1a2b3c4d5e6f";
+    const GONE = "9a8b7c6d-5b7d-4e8a-9c0f-1a2b3c4d5e6f";
+    const home = await mkdtemp(join(tmpdir(), "fm-fleet-"));
+    await mkdir(join(home, "data"));
+    await writeFile(
+      join(home, "data", "backlog.md"),
+      `## In flight\n- [ ] fix-flaky-login - Fix the login (agent: ${OWN})\n- [ ] add-dark-mode - Dark mode (agent: ${GONE})\n`,
+    );
+    const live = { id: OWN, title: "Login fixer", status: "running", cwd: "/wt/login", updatedAt: "t1", archivedAt: null, labels: {}, pendingPermissions: [] };
+    const paseo = {
+      agents: {
+        async list() {
+          return { entries: [], pageInfo: { nextCursor: null, hasMore: false } };
+        },
+        ref: (id: string) => ({
+          async refresh() {
+            if (id === OWN) return { agent: live };
+            throw new Error(`Agent not found: ${id}`);
+          },
+        }),
+      },
+      config: { async get() { return { config: { mcp: { injectIntoAgents: true } } }; } },
+    } as unknown as PaseoApi;
+
+    const fleet = await loadFleet(paseo, FirstmateConfigSchema.parse({ home }), new ReportCache());
+
+    expect(fleet.warnings).toEqual([]);
+    expect(fleet.cards.map((card) => [card.taskId, card.agent?.id ?? null, card.column])).toEqual([
+      ["fix-flaky-login", OWN, "working"],
+      ["add-dark-mode", null, "idle"],
+    ]);
   });
 });
