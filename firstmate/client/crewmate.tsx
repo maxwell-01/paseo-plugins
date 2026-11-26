@@ -22,6 +22,8 @@ import type { MateAsk } from "./card-answer";
 import { useFollowEnd } from "./follow-end";
 import { agentStatusLabel, agentStatusTone } from "./format";
 import { Markdown } from "./markdown";
+import { ReplyBox } from "./reply-box";
+import { replyTarget } from "./reply-target";
 import { PermissionCard, usePendingRequests } from "./permission-card";
 import { Chip, IconButton, JumpToEnd, MONOSPACE, Spinner, errorText } from "./ui";
 import { useAgentTimeline } from "./use-timeline";
@@ -73,6 +75,7 @@ export function CrewmateView({
 }) {
   const [width, setWidth] = useState(0);
   const agent = card?.agent ?? null;
+  const target = card === null ? null : replyTarget(card);
   const sideBySide = !compact && width >= SIDE_BY_SIDE_WIDTH;
 
   const styles = useMemo(() => {
@@ -144,6 +147,9 @@ export function CrewmateView({
             compact={compact}
             onOpen={onOpen}
           />
+          {target === null ? null : (
+            <ReplyBox target={target} theme={theme} compact={compact} toMate={toMate} onSent={onChanged} />
+          )}
         </View>
       </View>
     </View>

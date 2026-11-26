@@ -26,6 +26,7 @@ import { MAX_FILE_PATH_LENGTH, findHomeFiles } from "../shared/files";
 import { isAtEnd } from "./follow-end";
 import { isSendKey } from "./keys";
 import { createSendGate } from "./mate-send";
+import { mateReplyText, replyLabel, replyKey, replyTarget } from "./reply-target";
 import { chevronLabel, isCut, showsChevron } from "./suggestion-fold";
 import { createRemovalGate, suggestionRemovals } from "./suggestion-removals";
 import { isDirty, markSaved, type OpenFile } from "./open-file";
@@ -39,9 +40,13 @@ import {
   errorText,
   formatTokenCount,
   groupCaptainCards,
+  isUnread,
+  lastMessageLine,
   moveColumn,
+  openId,
   opensAsLeft,
   orderedColumns,
+  readPatch,
   relativeTime,
   revealFilesPatch,
   shortPath,
@@ -138,55 +143,44 @@ describe("transcriptRows", () => {
 describe("the topic of a row", () => {
   const topicsOf = (entries: TimelineEntry[]) => transcriptRows(entries).map((row) => [row.kind, row.topicId, row.text]);
 
-  it("files a tagged captain message and the replies after it, without the tag", () => {
+  it("files a captain message that starts with a tag, without the tag, and nothing after it", () => {
     expect(
       topicsOf([
         entry({ type: "user_message", text: "[topic: fix-flaky-login] Any news?" }, 1),
         entry({ type: "tool_call", callId: "c", name: "Bash", detail: { type: "shell", command: "ls" }, status: "completed", error: null }, 2),
         entry({ type: "assistant_message", text: "Not yet." }, 3),
+        entry({ type: "user_message", text: "Thanks." }, 4),
       ]),
     ).toEqual([
       ["captain", "fix-flaky-login", "Any news?"],
-      ["tool", "fix-flaky-login", "$ ls"],
-      ["mate", "fix-flaky-login", "Not yet."],
-    ]);
-  });
-
-  it("ends the topic at an untagged captain message or an injected note", () => {
-    expect(
-      topicsOf([
-        entry({ type: "user_message", text: "[topic: fix-flaky-login] Any news?" }, 1),
-        entry({ type: "user_message", text: "<firstmate-board>\nThe captain spoke.\n</firstmate-board>" }, 2),
-        entry({ type: "assistant_message", text: "Noted." }, 3),
-        entry({ type: "user_message", text: "[topic: dark-mode] Start it." }, 4),
-        entry({ type: "user_message", text: "Thanks." }, 5),
-        entry({ type: "assistant_message", text: "Aye." }, 6),
-      ]),
-    ).toEqual([
-      ["captain", "fix-flaky-login", "Any news?"],
-      ["event", null, "The captain spoke."],
-      ["mate", null, "Noted."],
-      ["captain", "dark-mode", "Start it."],
+      ["tool", null, "$ ls"],
+      ["mate", null, "Not yet."],
       ["captain", null, "Thanks."],
-      ["mate", null, "Aye."],
     ]);
   });
 
-  it("files a reply that starts with a tag there, and lets it set the topic", () => {
+  it("files a reply by the tag it starts with, once its pieces are joined", () => {
     expect(
       topicsOf([
         entry({ type: "user_message", text: "Status?" }, 1),
-        entry({ type: "assistant_message", text: "[topic: dark-mode] " }, 2),
-        entry({ type: "assistant_message", text: "Queued behind the login fix." }, 3),
-        entry({ type: "tool_call", callId: "c", name: "Bash", detail: { type: "shell", command: "ls" }, status: "completed", error: null }, 4),
-        entry({ type: "assistant_message", text: "Checking." }, 5),
+        entry({ type: "assistant_message", text: "[topic: dark-" }, 2),
+        entry({ type: "assistant_message", text: "mode] Queued behind the login fix." }, 3),
+        entry({ type: "assistant_message", text: "" }, 4),
+        entry({ type: "tool_call", callId: "c", name: "Bash", detail: { type: "shell", command: "ls" }, status: "completed", error: null }, 5),
+        entry({ type: "assistant_message", text: "Checking." }, 6),
       ]),
     ).toEqual([
       ["captain", null, "Status?"],
       ["mate", "dark-mode", "Queued behind the login fix."],
-      ["tool", "dark-mode", "$ ls"],
-      ["mate", "dark-mode", "Checking."],
+      ["tool", null, "$ ls"],
+      ["mate", null, "Checking."],
     ]);
+  });
+
+  it("never files an injected note, even one that starts with a tag", () => {
+    expect(
+      topicsOf([entry({ type: "user_message", text: "<firstmate-board>\n[topic: dark-mode] spoke.\n</firstmate-board>" }, 1)]),
+    ).toEqual([["event", null, "[topic: dark-mode] spoke."]]);
   });
 
   it("keeps a message of attachments alone as a row once its tag is gone", () => {
@@ -1273,3 +1267,98 @@ describe("a card's actions and answer", () => {
     expect(answerKey(held)).not.toBe(answerKey(backlogCard({ id: "other" })));
   });
 });
+
+describe("opening a card", () => {
+  it("names a card by its task id, and by its agent's id when it has none", () => {
+    expect(openId({ ...crewCard("backlog:3", null), taskId: "fix-flaky-login" })).toBe("fix-flaky-login");
+    expect(openId({ ...crewCard("a1", { id: "a1" }), taskId: "fix-flaky-login" })).toBe("fix-flaky-login");
+    expect(openId(crewCard("a1", { id: "a1" }))).toBe("a1");
+    expect(openId(crewCard("empty", null))).toBeNull();
+  });
+});
+
+describe("a card's last message and unread dot", () => {
+  const item = backlogItem({ id: "fix-flaky-login" });
+  const withLast = (from: "captain" | "mate", seq: number, agent: Partial<AgentSummary> | null = null): FleetCard => ({
+    ...crewCard("backlog:0", agent),
+    backlog: item,
+    lastMessage: { seq, from, text: "Waiting on CI.", at: "2026-10-01T10:00:00.000Z" },
+  });
+
+  it("is unread when the first mate spoke last, past what was read", () => {
+    expect(isUnread(withLast("mate", 12), {})).toBe(true);
+    expect(isUnread(withLast("mate", 12), { "fix-flaky-login": 11 })).toBe(true);
+    expect(isUnread(withLast("mate", 12), { "fix-flaky-login": 12 })).toBe(false);
+    expect(isUnread(withLast("mate", 0), {})).toBe(true);
+  });
+
+  it("is not unread when the captain spoke last, or nothing was said", () => {
+    expect(isUnread(withLast("captain", 12), {})).toBe(false);
+    expect(isUnread({ ...withLast("mate", 12), lastMessage: null }, {})).toBe(false);
+  });
+
+  it("is unread whenever the card's agent wants the captain", () => {
+    expect(isUnread(withLast("captain", 12, { requiresAttention: true }), { "fix-flaky-login": 99 })).toBe(true);
+    expect(isUnread(crewCard("a1", { requiresAttention: true }), {})).toBe(true);
+    expect(isUnread(crewCard("a1", { requiresAttention: false }), {})).toBe(false);
+  });
+
+  it("records a newer seq only, and leaves the others as they were", () => {
+    expect(readPatch({ "dark-mode": 3 }, "fix-flaky-login", 12)).toEqual({ "dark-mode": 3, "fix-flaky-login": 12 });
+    expect(readPatch({ "fix-flaky-login": 12 }, "fix-flaky-login", 12)).toBeNull();
+    expect(readPatch({ "fix-flaky-login": 12 }, "fix-flaky-login", 9)).toBeNull();
+    expect(readPatch({}, "fix-flaky-login", 0)).toEqual({ "fix-flaky-login": 0 });
+  });
+
+  it("says who spoke, on one line", () => {
+    expect(lastMessageLine({ seq: 1, from: "mate", text: "Waiting\n\non  CI.", at: "" })).toBe("First mate: Waiting on CI.");
+    expect(lastMessageLine({ seq: 1, from: "captain", text: "Go ahead.", at: "" })).toBe("You: Go ahead.");
+  });
+
+  it("keeps the read map in the display settings, empty by default", () => {
+    expect(displaySettings.schema.parse({}).topicsRead).toEqual({});
+  });
+});
+
+describe("the reply box", () => {
+  const withAgent: FleetCard = { ...crewCard("a1", { id: "a1", title: "Login fixer" }), taskId: "fix-flaky-login", backlog: backlogItem({ id: "fix-flaky-login" }) };
+  const without: FleetCard = { ...crewCard("backlog:1", null), taskId: "dark-mode", backlog: backlogItem({ id: "dark-mode" }) };
+
+  it("sends to the card's agent directly, and otherwise to the first mate under the item", () => {
+    expect(replyTarget(withAgent)).toEqual({ kind: "agent", agentId: "a1", title: "Login fixer" });
+    expect(replyTarget(without)).toEqual({ kind: "mate", topicId: "dark-mode" });
+    expect(replyTarget(crewCard("backlog:2", null))).toBeNull();
+  });
+
+  it("says who gets the message", () => {
+    expect(replyLabel({ kind: "agent", agentId: "a1", title: "Login fixer" })).toBe("To Login fixer, directly");
+    expect(replyLabel({ kind: "mate", topicId: "dark-mode" })).toBe("To the first mate, filed under dark-mode");
+  });
+
+  it("tags what goes to the first mate, and keeps drafts apart from every other box", () => {
+    expect(mateReplyText("dark-mode", "Start it.")).toBe("[topic: dark-mode] Start it.");
+    expect(replyKey({ kind: "mate", topicId: "dark-mode" })).toBe("reply:topic:dark-mode");
+    expect(replyKey({ kind: "agent", agentId: "a1", title: "x" })).toBe("reply:agent:a1");
+  });
+});
+
+function backlogItem(overrides: Partial<BacklogItem>): BacklogItem {
+  return {
+    section: "queued",
+    id: "x",
+    title: "X",
+    project: null,
+    kind: null,
+    mode: null,
+    agentId: null,
+    hold: null,
+    actions: [],
+    notes: [],
+    blockedBy: null,
+    since: null,
+    url: null,
+    reportPath: null,
+    outcome: null,
+    ...overrides,
+  };
+}

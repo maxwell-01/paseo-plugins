@@ -17,7 +17,7 @@ compile time. This file covers only what is specific to `firstmate`.
 | `index.server.ts`             | Wiring — the RPCs, the display settings document, the steer relay hook.                    |
 | `index.client.tsx`            | Wiring — the screen, sidebar item, two panels, settings screen, ⌘K items, `/fm` `/bearings` `/ahoy`. |
 | `shared/fleet.ts`             | Every RPC contract, the card/fleet shapes, the daemon config shape, and `CREW_LABELS`.     |
-| `shared/settings.ts`          | The host settings document: column order and folds, the chat's width, the poll interval.   |
+| `shared/settings.ts`          | The host settings document: column order and folds, the chat's width, the poll interval, hidden chat kinds, what is read. |
 | `templates/`                  | **Every file the plugin writes into the home**, as Markdown laid out as it lands there, and the parts that go inside them. The first mate's behaviour is `templates/data/charter.md`. |
 | `server/templates.ts`         | Finds `templates/` — through `paseo plugin ls`, since the compiled plugin cannot say where it lives — and reads it. |
 | `server/charter.ts`           | Renders `AGENTS.md`: the charter's placeholders filled, under its heading note.            |
@@ -67,6 +67,9 @@ compile time. This file covers only what is specific to `firstmate`.
 | `client/watches.tsx`          | The Watches card: each watch's schedule, last run and output, and its on/off switch.       |
 | `client/mate-send.ts`         | Sending to the first mate — Send, Bearings, Ahoy, a suggestion — one message at a time.    |
 | `client/crewmate.tsx`         | Watch: one crewmate's card beside its live transcript, in the board's place.               |
+| `client/topic.tsx`            | Open: a card with no agent, beside the daemon's thread of messages filed under its item.   |
+| `client/reply-box.tsx`        | The box under a thread or a transcript: who gets it, the text, Send; the draft kept on `globalThis`. |
+| `client/reply-target.ts`      | Who a reply goes to, what it says above the box, the tagged text, the draft's slot. Pure.  |
 | `client/activity-rows.ts`     | Timeline entries → Watch rows, machinery kept: reasoning, tool detail, the latest plan. Pure. |
 | `client/mate-controls.tsx`    | The context meter, Compact and Restart (with its confirmation), at the end of the chat's buttons. |
 | `client/context-meter.tsx`    | How full the first mate's context is: Paseo's ring, built from views; the numbers in a tooltip. |
@@ -794,6 +797,38 @@ Attachments and card answers are not persisted. A new mate UUID gets a new draft
 
 The pending attachments live beside the draft on `globalThis` (`client/attachments.ts`), bytes and
 all, so a lost connection keeps them; a failed send puts them back unless something new was attached.
+
+## Topics
+
+A backlog item is a topic, and a message is filed under it by a tag a compiler cannot check.
+
+**The tag and the filing rule are shared.** A captain message that starts `[topic: <id>]`, and a first-mate
+reply that starts with it (read after the reply's pieces are joined), belong to topic `<id>`; the tag is
+shown off. `splitTopicTag` and `topicTag` in `shared/topics.ts` are the only place that spells the tag.
+The daemon files by `fileTopicMessages` (`server/topic-log.ts`) and the chat by `fileRows` in
+`client/transcript-rows.ts`; a change to what counts as a tagged message changes both, or a message
+shows in the chat and on its card, or in neither. An injected message (`classifyUserMessage`) is never
+filed. The charter (§2) tells the first mate to start every message about an item with the tag; one
+without it stays in the chat.
+
+**Threads are kept on the daemon** (`server/topic-log.ts`, `topics.json` in the plugin's data folder)
+because the chat reads only the last 150 entries of a timeline that holds thousands. A thread built
+from that tail would lose a message within the hour. The log upserts by `seq` and never deletes on a
+re-read, and keeps the newest 200 per topic.
+
+**The `seq` offset.** A message's `seq` is where its timeline entry starts, and a restarted first mate
+has a new timeline that begins at 0 again. The log keeps the old messages across a new first mate id, so
+seqs from two sessions share one thread; compare them only within one session. Unread state
+(`isUnread` in `client/format.ts`) compares a topic's newest seq with the one recorded, so after a
+restart a reply can read as read until its seq passes the old one.
+
+**Unread state is a settings document** (`topicsRead` in `shared/settings.ts`) because the client writes
+it, the daemon has no use for it, and every device the captain uses should agree on what is read. Opening
+a card, and each newer message while it is open, saves the topic's newest seq through the surface's
+batched `save`.
+
+**A card's action buttons stay untagged.** Their prompts and the Answer box's `<id> — <title>: …` are a
+contract with the charter and bb's FirstMate, so they are not filed. Only the reply box tags.
 
 ## What was left out
 

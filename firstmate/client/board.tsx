@@ -35,7 +35,9 @@ import {
   columnTone,
   groupCaptainCards,
   groupCards,
+  isUnread,
   moveColumn,
+  openId,
   SUGGESTIONS_CARD,
   WATCHES_CARD,
 } from "./format";
@@ -71,8 +73,10 @@ interface BoardProps {
   watches: readonly WatchSummary[];
   /** Opens a home file in the Files view: the tab on a phone, the right-hand pane on a wide layout. */
   onOpenFile: (path: string) => void;
-  /** Shows one crewmate's card and transcript in place of the board. */
-  onWatch: (agentId: string) => void;
+  /** The newest first-mate message the captain has had open, by topic id; an unread dot is judged against it. */
+  topicsRead: Readonly<Record<string, number>>;
+  /** Shows a card's thread, or its crewmate's transcript, in place of the board; `id` is `openId`'s. */
+  onOpen: (id: string) => void;
   onToggleColumn: (id: string) => void;
   /** Saves a new whole column order, hidden columns included. */
   onReorder: (order: ColumnId[]) => void;
@@ -202,16 +206,23 @@ export function Board(props: BoardProps) {
 
   function renderCards(entries: readonly FleetCard[]) {
     return entries.map((card) => {
-      const agentId = card.agent?.id ?? null;
+      const id = openId(card);
       return (
         <CrewCard
           key={card.key}
           card={card}
           theme={theme}
           compact={compact}
-          opener={agentId === null ? null : { icon: "Eye", label: "Watch", onPress: () => props.onWatch(agentId) }}
+          opener={
+            id === null
+              ? null
+              : card.agent === null
+                ? { icon: "MessageSquare", label: "Open", onPress: () => props.onOpen(id) }
+                : { icon: "Eye", label: "Watch", onPress: () => props.onOpen(id) }
+          }
           onChanged={props.onChanged}
           toMate={props.toMate}
+          unread={isUnread(card, props.topicsRead)}
         />
       );
     });

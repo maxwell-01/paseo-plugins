@@ -35,6 +35,8 @@ export const displaySettings = defineSettings({
     pollSeconds: z.number().int().min(1).max(120).default(5),
     /** Kinds of row the chat leaves out, from `CHAT_KINDS`. Cross-daemon messages are machine chatter, so hidden until asked for. */
     hiddenChatKinds: z.array(z.string()).default(["cross-daemon"]),
+    /** The newest first-mate message seq the captain has had open, by topic id: what an unread dot is judged against. */
+    topicsRead: z.record(z.string(), z.number()).default({}),
   }),
 });
 

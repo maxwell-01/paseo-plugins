@@ -8,6 +8,7 @@ import {
   type WatchResult,
   type WatchSummary,
 } from "../shared/fleet";
+import type { TopicMessage } from "../shared/topics";
 import { isHeld } from "./card-answer";
 
 export interface ColumnMeta {
@@ -49,6 +50,42 @@ export function captainColumn(card: FleetCard): CaptainColumnId {
   if (isHeld(card) || card.column === "blocked" || card.column === "failed") return "needs-you";
   if (card.column === "working" || card.column === "idle") return "working";
   return "queued";
+}
+
+/**
+ * What the board remembers an open card by: its task id, which a backlog card keeps for as long as the
+ * item is on the line, or its agent's id when it has none. Never `card.key`: a backlog card's key holds
+ * its line's index, which moves when the first mate edits the file above it.
+ */
+export function openId(card: FleetCard): string | null {
+  return card.taskId ?? card.agent?.id ?? null;
+}
+
+/**
+ * Whether the captain has something to read on a card: the first mate spoke last and its message is newer
+ * than the one the captain last had open (`read`, topic id to seq), or the card's agent is waiting on them.
+ */
+export function isUnread(card: FleetCard, read: Readonly<Record<string, number>>): boolean {
+  if (card.agent?.requiresAttention === true) return true;
+  const last = card.lastMessage;
+  const topicId = card.backlog?.id;
+  if (last === null || last.from !== "mate" || topicId === undefined) return false;
+  return last.seq > (read[topicId] ?? -1);
+}
+
+/** The read map with `topicId` read up to `seq`; null when it already was, so nothing is saved for it. */
+export function readPatch(
+  read: Readonly<Record<string, number>>,
+  topicId: string,
+  seq: number,
+): Record<string, number> | null {
+  if (seq <= (read[topicId] ?? -1)) return null;
+  return { ...read, [topicId]: seq };
+}
+
+/** A card's last message as one line: who said it, then the words with their line breaks folded away. */
+export function lastMessageLine(message: TopicMessage): string {
+  return `${message.from === "mate" ? "First mate" : "You"}: ${message.text.replace(/\s+/g, " ").trim()}`;
 }
 
 export function captainTone(theme: PluginTheme, column: CaptainColumnId): string {

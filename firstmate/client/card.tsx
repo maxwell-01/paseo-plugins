@@ -21,7 +21,7 @@ import { Pressable, Text, View } from "react-native";
 
 import { exitCrew, interruptCrew, relaunchCrew, steerCrew, type ColumnId, type FleetCard } from "../shared/fleet";
 import { answerKey, answers as answerDrafts, cardActions, isHeld, submitAnswer, type MateAsk } from "./card-answer";
-import { agentStatusLabel, agentStatusTone, columnTone, modelLabel, opensAsLeft, relativeTime } from "./format";
+import { agentStatusLabel, agentStatusTone, columnTone, lastMessageLine, modelLabel, opensAsLeft, relativeTime } from "./format";
 import { Chip, IconButton, errorText } from "./ui";
 import { FONT_SIZE, lineHeightFor } from "./type-scale";
 
@@ -88,6 +88,7 @@ export function CrewCard({
   opener,
   onChanged,
   toMate,
+  unread = false,
   startExpanded = false,
 }: {
   card: FleetCard;
@@ -99,6 +100,8 @@ export function CrewCard({
   onChanged: () => void;
   /** Sends a card action or an answer to the first mate; null draws neither. */
   toMate: MateAsk | null;
+  /** Draws a dot beside the title: something on the card is waiting to be read. */
+  unread?: boolean;
   startExpanded?: boolean;
 }) {
   const steer = useRpc(steerCrew);
@@ -129,6 +132,7 @@ export function CrewCard({
       press: { padding: pad, gap: 6 },
       titleRow: { flexDirection: "row" as const, alignItems: "flex-start" as const, gap: 8 },
       title: { flex: 1, color: colors.foreground, fontSize: FONT_SIZE.body, fontWeight: "600" as const },
+      unreadDot: { width: 8, height: 8, borderRadius: 4, marginTop: 5, backgroundColor: colors.accent },
       meta: { color: colors.foregroundMuted, fontSize: FONT_SIZE.caption },
       report: { color: colors.foreground, fontSize: FONT_SIZE.small, lineHeight: lineHeightFor(FONT_SIZE.small) },
       reportState: { color: tone, fontWeight: "600" as const },
@@ -214,6 +218,7 @@ export function CrewCard({
         style={[styles.press, answers ? { paddingBottom: 6 } : null]}
       >
         <View style={styles.titleRow}>
+          {unread ? <View accessibilityLabel="Unread" style={styles.unreadDot} /> : null}
           <Text style={styles.title}>{card.title}</Text>
           {agent === null ? null : <Chip theme={theme} text={agentStatusLabel(agent)} color={agentStatusTone(theme, agent)} />}
         </View>
@@ -223,6 +228,11 @@ export function CrewCard({
           <Text style={styles.report} numberOfLines={expanded ? undefined : 3}>
             <Text style={styles.reportState}>{STATE_WORDS[card.report.state] ?? card.report.state}: </Text>
             {card.report.text}
+          </Text>
+        )}
+        {card.report !== null || card.lastMessage === null ? null : (
+          <Text style={styles.report} numberOfLines={2}>
+            {lastMessageLine(card.lastMessage)}
           </Text>
         )}
         {backlog?.hold === null || backlog?.hold === undefined ? null : (
@@ -359,6 +369,9 @@ export function CrewCard({
 
         {expanded && agent === null ? (
           <View style={styles.actions}>
+            {opener === null ? null : (
+              <IconButton icon={opener.icon} label={opener.label} showLabel theme={theme} onPress={opener.onPress} />
+            )}
             <Icon name="Info" size={12} color={theme.colors.foregroundMuted} />
             <Text style={styles.meta}>Ask the first mate to act on backlog items.</Text>
           </View>
