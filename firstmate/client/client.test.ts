@@ -135,6 +135,67 @@ describe("transcriptRows", () => {
   });
 });
 
+describe("the topic of a row", () => {
+  const topicsOf = (entries: TimelineEntry[]) => transcriptRows(entries).map((row) => [row.kind, row.topicId, row.text]);
+
+  it("files a tagged captain message and the replies after it, without the tag", () => {
+    expect(
+      topicsOf([
+        entry({ type: "user_message", text: "[topic: fix-flaky-login] Any news?" }, 1),
+        entry({ type: "tool_call", callId: "c", name: "Bash", detail: { type: "shell", command: "ls" }, status: "completed", error: null }, 2),
+        entry({ type: "assistant_message", text: "Not yet." }, 3),
+      ]),
+    ).toEqual([
+      ["captain", "fix-flaky-login", "Any news?"],
+      ["tool", "fix-flaky-login", "$ ls"],
+      ["mate", "fix-flaky-login", "Not yet."],
+    ]);
+  });
+
+  it("ends the topic at an untagged captain message or an injected note", () => {
+    expect(
+      topicsOf([
+        entry({ type: "user_message", text: "[topic: fix-flaky-login] Any news?" }, 1),
+        entry({ type: "user_message", text: "<firstmate-board>\nThe captain spoke.\n</firstmate-board>" }, 2),
+        entry({ type: "assistant_message", text: "Noted." }, 3),
+        entry({ type: "user_message", text: "[topic: dark-mode] Start it." }, 4),
+        entry({ type: "user_message", text: "Thanks." }, 5),
+        entry({ type: "assistant_message", text: "Aye." }, 6),
+      ]),
+    ).toEqual([
+      ["captain", "fix-flaky-login", "Any news?"],
+      ["event", null, "The captain spoke."],
+      ["mate", null, "Noted."],
+      ["captain", "dark-mode", "Start it."],
+      ["captain", null, "Thanks."],
+      ["mate", null, "Aye."],
+    ]);
+  });
+
+  it("files a reply that starts with a tag there, and lets it set the topic", () => {
+    expect(
+      topicsOf([
+        entry({ type: "user_message", text: "Status?" }, 1),
+        entry({ type: "assistant_message", text: "[topic: dark-mode] " }, 2),
+        entry({ type: "assistant_message", text: "Queued behind the login fix." }, 3),
+        entry({ type: "tool_call", callId: "c", name: "Bash", detail: { type: "shell", command: "ls" }, status: "completed", error: null }, 4),
+        entry({ type: "assistant_message", text: "Checking." }, 5),
+      ]),
+    ).toEqual([
+      ["captain", null, "Status?"],
+      ["mate", "dark-mode", "Queued behind the login fix."],
+      ["tool", "dark-mode", "$ ls"],
+      ["mate", "dark-mode", "Checking."],
+    ]);
+  });
+
+  it("keeps a message of attachments alone as a row once its tag is gone", () => {
+    expect(topicsOf([entry({ type: "user_message", text: "[topic: dark-mode]" }, 1)])).toEqual([
+      ["captain", "dark-mode", "(attachments)"],
+    ]);
+  });
+});
+
 describe("visibleRows", () => {
   const rows = transcriptRows([
     entry({ type: "user_message", text: "fix the login" }, 1),
@@ -1031,6 +1092,7 @@ describe("the captain's columns", () => {
         agentId: null,
         hold,
         actions: [],
+        notes: [],
         blockedBy: null,
         since: null,
         url: null,
@@ -1099,6 +1161,7 @@ describe("a card's actions and answer", () => {
       agentId: null,
       hold: null,
       actions: [],
+      notes: [],
       blockedBy: null,
       since: null,
       url: null,

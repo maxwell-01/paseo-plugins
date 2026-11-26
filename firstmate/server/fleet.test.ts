@@ -59,6 +59,7 @@ describe("backlogColumn", () => {
     agentId: null,
     hold: null,
     actions: [],
+    notes: [],
     blockedBy: null,
     since: null,
     url: null,

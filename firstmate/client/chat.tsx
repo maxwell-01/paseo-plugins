@@ -119,7 +119,7 @@ export function MateChat({
   const { sending, send, command: sendMateCommand } = useMateSender(mate.id);
   const timeline = useAgentTimeline(mate.id, `${mate.updatedAt}:${mate.pendingPermissions}`);
   const rows = useMemo(
-    () => visibleRows(transcriptRows(timeline.entries), hiddenKinds),
+    () => visibleRows(transcriptRows(timeline.entries), hiddenKinds).filter((row) => row.topicId === null),
     [timeline.entries, hiddenKinds],
   );
   const groups = useMemo(() => groupRows(rows), [rows]);
