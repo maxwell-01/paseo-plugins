@@ -26,7 +26,7 @@ describe("fileTopicMessages", () => {
     };
   }
   const summary = (items: FilingItem[]) =>
-    fileTopicMessages(items).map(({ topicId, message }) => [topicId, message.from, message.seq, message.text]);
+    fileTopicMessages(items, "m1").map(({ topicId, message }) => [topicId, message.from, message.id, message.text]);
 
   it("files a tagged captain message and a reply that starts with its own tag, nothing else", () => {
     seq = 0;
@@ -46,10 +46,10 @@ describe("fileTopicMessages", () => {
         item("assistant_message", ""),
       ]),
     ).toEqual([
-      ["fix-flaky-login", "captain", 1, "any news?"],
-      ["fix-flaky-login", "mate", 2, "Aye, looking."],
-      ["add-dark-mode", "captain", 9, "and now?"],
-      ["add-dark-mode", "mate", 10, "Dark."],
+      ["fix-flaky-login", "captain", "m1:1", "any news?"],
+      ["fix-flaky-login", "mate", "m1:2", "Aye, looking."],
+      ["add-dark-mode", "captain", "m1:9", "and now?"],
+      ["add-dark-mode", "mate", "m1:10", "Dark."],
     ]);
   });
 
@@ -65,14 +65,14 @@ describe("fileTopicMessages", () => {
         item("assistant_message", "[topic: a] after"),
       ]),
     ).toEqual([
-      ["a", "mate", 1, "part one and part two"],
-      ["a", "mate", 6, "after"],
+      ["a", "mate", "m1:1", "part one and part two"],
+      ["a", "mate", "m1:6", "after"],
     ]);
   });
 
   it("files a captain message of a tag alone as a message of attachments", () => {
     seq = 0;
-    expect(summary([item("user_message", "[topic: a]")])).toEqual([["a", "captain", 1, ATTACHMENTS_ONLY]]);
+    expect(summary([item("user_message", "[topic: a]")])).toEqual([["a", "captain", "m1:1", ATTACHMENTS_ONLY]]);
   });
 
   it("does not file a captain's pasted watch block as injected, only a watch message with the plugin's id", () => {
@@ -84,6 +84,6 @@ describe("fileTopicMessages", () => {
         item("user_message", block, "firstmate-watch-1"),
         item("assistant_message", "Seen."),
       ]),
-    ).toEqual([["fix-flaky-login", "captain", 1, "hi"]]);
+    ).toEqual([["fix-flaky-login", "captain", "m1:1", "hi"]]);
   });
 });

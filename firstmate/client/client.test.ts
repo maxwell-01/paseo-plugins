@@ -40,6 +40,7 @@ import {
   contextTone,
   errorText,
   formatTokenCount,
+  findOpenCard,
   groupCaptainCards,
   headerCounts,
   isUnread,
@@ -1335,17 +1336,19 @@ describe("opening a card", () => {
 });
 
 describe("a card's last message and unread dot", () => {
+  const at = (minute: number) => `2026-10-01T10:${String(minute).padStart(2, "0")}:00.000Z`;
   const item = backlogItem({ id: "fix-flaky-login" });
-  const withLast = (from: "captain" | "mate", seq: number, agent: Partial<AgentSummary> | null = null): FleetCard => ({
+  /** `minute` is when it was said, as the minute of an hour on 2026-10-01. */
+  const withLast = (from: "captain" | "mate", minute: number, agent: Partial<AgentSummary> | null = null): FleetCard => ({
     ...crewCard("backlog:0", agent),
     backlog: item,
-    lastMessage: { seq, from, text: "Waiting on CI.", at: "2026-10-01T10:00:00.000Z" },
+    lastMessage: { id: `m:${minute}`, from, text: "Waiting on CI.", at: at(minute) },
   });
 
   it("is unread when the first mate spoke last, past what was read", () => {
     expect(isUnread(withLast("mate", 12), {})).toBe(true);
-    expect(isUnread(withLast("mate", 12), { "fix-flaky-login": 11 })).toBe(true);
-    expect(isUnread(withLast("mate", 12), { "fix-flaky-login": 12 })).toBe(false);
+    expect(isUnread(withLast("mate", 12), { "fix-flaky-login": at(11) })).toBe(true);
+    expect(isUnread(withLast("mate", 12), { "fix-flaky-login": at(12) })).toBe(false);
     expect(isUnread(withLast("mate", 0), {})).toBe(true);
   });
 
@@ -1355,7 +1358,7 @@ describe("a card's last message and unread dot", () => {
   });
 
   it("is unread whenever the card's agent wants the captain", () => {
-    expect(isUnread(withLast("captain", 12, { requiresAttention: true }), { "fix-flaky-login": 99 })).toBe(true);
+    expect(isUnread(withLast("captain", 12, { requiresAttention: true }), { "fix-flaky-login": at(59) })).toBe(true);
     expect(isUnread(crewCard("a1", { requiresAttention: true }), {})).toBe(true);
   });
 
@@ -1364,20 +1367,20 @@ describe("a card's last message and unread dot", () => {
     expect(isUnread(crewCard("a1", { requiresAttention: false }), {})).toBe(false);
   });
 
-  it("records a newer seq only, and leaves the others as they were", () => {
-    expect(readPatch({ "dark-mode": 3 }, "fix-flaky-login", 12)).toEqual({ "dark-mode": 3, "fix-flaky-login": 12 });
-    expect(readPatch({ "fix-flaky-login": 12 }, "fix-flaky-login", 12)).toBeNull();
-    expect(readPatch({ "fix-flaky-login": 12 }, "fix-flaky-login", 9)).toBeNull();
-    expect(readPatch({}, "fix-flaky-login", 0)).toEqual({ "fix-flaky-login": 0 });
+  it("records a later time only, and leaves the others as they were", () => {
+    expect(readPatch({ "dark-mode": at(3) }, "fix-flaky-login", at(12))).toEqual({ "dark-mode": at(3), "fix-flaky-login": at(12) });
+    expect(readPatch({ "fix-flaky-login": at(12) }, "fix-flaky-login", at(12))).toBeNull();
+    expect(readPatch({ "fix-flaky-login": at(12) }, "fix-flaky-login", at(9))).toBeNull();
+    expect(readPatch({}, "fix-flaky-login", at(0))).toEqual({ "fix-flaky-login": at(0) });
   });
 
   it("says who spoke, on one line", () => {
-    expect(lastMessageLine({ seq: 1, from: "mate", text: "Waiting\n\non  CI.", at: "" })).toBe("First mate: Waiting on CI.");
-    expect(lastMessageLine({ seq: 1, from: "captain", text: "Go ahead.", at: "" })).toBe("You: Go ahead.");
+    expect(lastMessageLine({ id: "m:1", from: "mate", text: "Waiting\n\non  CI.", at: "" })).toBe("First mate: Waiting on CI.");
+    expect(lastMessageLine({ id: "m:1", from: "captain", text: "Go ahead.", at: "" })).toBe("You: Go ahead.");
   });
 
   it("names the agent that spoke, or says Agent", () => {
-    const said = { seq: 1, from: "agent" as const, text: "Tests pass.", at: "" };
+    const said = { id: "a1:1", from: "agent" as const, text: "Tests pass.", at: "" };
     expect(lastMessageLine(said, "Login fixer")).toBe("Login fixer: Tests pass.");
     expect(lastMessageLine(said, null)).toBe("Agent: Tests pass.");
     expect(isUnread({ ...withLast("mate", 1), lastMessage: said }, {})).toBe(false);
@@ -1385,6 +1388,26 @@ describe("a card's last message and unread dot", () => {
 
   it("keeps the read map in the display settings, empty by default", () => {
     expect(displaySettings.schema.parse({}).topicsRead).toEqual({});
+  });
+});
+
+describe("finding the open card", () => {
+  const thread = { ...crewCard("backlog:0", null), taskId: "dark-mode" };
+  const crew = { ...crewCard("a1", { id: "a1" }), taskId: "dark-mode" };
+  const other = { ...crewCard("a2", { id: "a2" }), taskId: "fix-flaky-login" };
+
+  it("finds the card by the id it was opened under", () => {
+    expect(findOpenCard([other, thread], "dark-mode", "dark-mode")).toBe(thread);
+    expect(findOpenCard([other, crew], "a1", "dark-mode")).toBe(crew);
+  });
+
+  it("follows a thread whose line gained an agent to the agent's card, by task id", () => {
+    expect(findOpenCard([other, crew], "dark-mode", "dark-mode")).toBe(crew);
+  });
+
+  it("finds nothing once neither the id nor the task is on the board", () => {
+    expect(findOpenCard([other], "dark-mode", "dark-mode")).toBeNull();
+    expect(findOpenCard([other], "dark-mode", null)).toBeNull();
   });
 });
 

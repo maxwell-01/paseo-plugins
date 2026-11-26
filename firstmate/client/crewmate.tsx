@@ -63,8 +63,7 @@ export function CrewmateView({
   toMate,
 }: {
   agentId: string;
-  /** Null once the crewmate has left the board — ended, or archived. */
-  card: FleetCard | null;
+  card: FleetCard;
   theme: PluginTheme;
   compact: boolean;
   onBack: () => void;
@@ -74,8 +73,8 @@ export function CrewmateView({
   toMate: MateAsk | null;
 }) {
   const [width, setWidth] = useState(0);
-  const agent = card?.agent ?? null;
-  const target = card === null ? null : replyTarget(card);
+  const agent = card.agent;
+  const target = replyTarget(card);
   const sideBySide = !compact && width >= SIDE_BY_SIDE_WIDTH;
 
   const styles = useMemo(() => {
@@ -95,7 +94,6 @@ export function CrewmateView({
       bodySide: { flexDirection: "row" as const },
       cardColumn: { width: CARD_COLUMN_WIDTH, flexGrow: 0, flexShrink: 0 },
       cardStacked: { flexGrow: 0, maxHeight: "45%" as const },
-      gone: { color: colors.foregroundMuted, fontSize: FONT_SIZE.small, lineHeight: lineHeightFor(FONT_SIZE.small) },
       transcriptFrame: {
         flex: 1,
         minHeight: 0,
@@ -109,19 +107,16 @@ export function CrewmateView({
     };
   }, [theme, compact]);
 
-  const cardView =
-    card === null ? (
-      <Text style={styles.gone}>This worker is no longer on the board — it was ended or archived.</Text>
-    ) : (
-      <CrewCard card={card} theme={theme} compact={compact} opener={null} onChanged={onChanged} toMate={toMate} hideAnswer startExpanded={!compact} />
-    );
+  const cardView = (
+    <CrewCard card={card} theme={theme} compact={compact} opener={null} onChanged={onChanged} toMate={toMate} hideAnswer startExpanded={!compact} />
+  );
 
   return (
     <View style={styles.screen}>
       <View style={styles.bar}>
         <IconButton icon="ChevronLeft" label="Crew" showLabel theme={theme} onPress={onBack} />
         <Text style={styles.title} numberOfLines={1}>
-          {card?.title ?? "Worker"}
+          {card.title}
         </Text>
         {agent === null ? null : <Chip theme={theme} text={agentStatusLabel(agent)} color={agentStatusTone(theme, agent)} />}
         {onOpen === null ? null : (

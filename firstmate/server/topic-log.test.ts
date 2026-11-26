@@ -11,14 +11,17 @@ import { MAX_TOPIC_MESSAGES, TopicLog, mergeTopicMessages, registerTopicSync } f
 
 const MATE = "5d1c2f0e-0000-4000-8000-000000000001";
 
-function message(seq: number, text = `m${seq}`): TopicMessage {
-  return { seq, from: "mate", text, at: "2026-09-22T10:00:00.000Z" };
+/** A first-mate message with id `m:<n>`, said `n` seconds past ten. */
+function message(n: number, text = `m${n}`): TopicMessage {
+  return { id: `m:${n}`, from: "mate", text, at: `2026-09-22T10:00:${String(n).padStart(2, "0")}.000Z` };
 }
 
-type Item = { type: string; text?: string };
+const MATE_B = "7b2e0000-0000-4000-8000-000000000002";
+
+type Item = { type: string; text?: string; at?: string };
 
 /** A paseo whose first mate's timeline is `items`, entry n starting at seq `firstSeq` + n; `reads` counts its timeline reads. */
-function fakePaseo(items: () => Item[], reads: { count: number } = { count: 0 }, firstSeq = 1): PaseoApi {
+function fakePaseo(items: () => Item[], reads: { count: number } = { count: 0 }, firstSeq = 1, minute = 0): PaseoApi {
   return {
     agents: {
       ref: () => ({
@@ -30,7 +33,7 @@ function fakePaseo(items: () => Item[], reads: { count: number } = { count: 0 },
                 item,
                 seqStart: firstSeq + index,
                 seqEnd: firstSeq + index,
-                timestamp: "2026-09-22T10:00:00.000Z",
+                timestamp: item.at ?? `2026-09-22T10:${String(minute).padStart(2, "0")}:${String(firstSeq + index).padStart(2, "0")}.000Z`,
               })),
             };
           },
@@ -55,7 +58,7 @@ afterEach(() => {
 });
 
 describe("mergeTopicMessages", () => {
-  it("replaces a message by its seq and keeps the newest 200, oldest first", () => {
+  it("replaces a message by its id and keeps the newest 200, oldest by time first", () => {
     expect(mergeTopicMessages([message(1, "Aye"), message(3)], [message(1, "Aye, captain."), message(2)]).map((m) => m.text)).toEqual([
       "Aye, captain.",
       "m2",
@@ -64,7 +67,7 @@ describe("mergeTopicMessages", () => {
     const kept = Array.from({ length: MAX_TOPIC_MESSAGES }, (_, index) => message(index + 1));
     const merged = mergeTopicMessages(kept, [message(MAX_TOPIC_MESSAGES + 1)]);
     expect(merged).toHaveLength(MAX_TOPIC_MESSAGES);
-    expect(merged[0]?.seq).toBe(2);
+    expect(merged[0]?.id).toBe("m:2");
   });
 });
 
@@ -83,13 +86,13 @@ describe("TopicLog", () => {
     await log.sync(paseo, { id: MATE, updatedAt: "t1" });
     await log.sync(paseo, { id: MATE, updatedAt: "t1" });
     expect(reads.count).toBe(1);
-    expect((await log.messages("fix-flaky-login")).map((m) => [m.from, m.seq, m.text])).toEqual([
-      ["captain", 1, "any news?"],
-      ["mate", 2, "Looking."],
+    expect((await log.messages("fix-flaky-login")).map((m) => [m.from, m.id, m.text])).toEqual([
+      ["captain", `${MATE}:1`, "any news?"],
+      ["mate", `${MATE}:2`, "Looking."],
     ]);
     expect((await log.latest()).get("fix-flaky-login")?.text).toBe("Looking.");
     const stored = JSON.parse(await readFile(join(process.env.PASEO_HOME ?? "", "plugin-data", "firstmate", "topics.json"), "utf8"));
-    expect(stored.mateAgentId).toBe(MATE);
+    expect(Object.keys(stored)).toEqual(["topics"]);
     await log.sync(paseo, { id: MATE, updatedAt: "t2" });
     expect(reads.count).toBe(2);
   });
@@ -112,22 +115,19 @@ describe("TopicLog", () => {
     ]);
   });
 
-  it("does not let a new first mate's seqs overwrite the old one's thread", async () => {
+  it("keeps every message when one first mate files, another files, and the first files again", async () => {
     const log = new TopicLog();
-    await log.sync(fakePaseo(() => conversation), { id: MATE, updatedAt: "t1" });
-    await log.sync(fakePaseo(() => conversation.slice(0, 2)), { id: "7b2e0000-0000-4000-8000-000000000002", updatedAt: "t1" });
-    expect((await log.messages("fix-flaky-login")).map((m) => m.text)).toEqual(["any news?", "Looking.", "any news?", "Looking."]);
-  });
-
-  it("files a first mate's tail once, however often first mates are swapped", async () => {
-    const log = new TopicLog();
-    const A = fakePaseo(() => conversation);
-    const B = fakePaseo(() => conversation.slice(0, 2));
-    const MATE_B = "7b2e0000-0000-4000-8000-000000000002";
-    await log.sync(A, { id: MATE, updatedAt: "t1" });
-    await log.sync(B, { id: MATE_B, updatedAt: "t1" });
-    await log.sync(A, { id: MATE, updatedAt: "t2" });
-    expect((await log.messages("fix-flaky-login")).map((m) => m.text)).toEqual(["any news?", "Looking.", "any news?", "Looking."]);
+    const a1: Item[] = [{ type: "user_message", text: "[topic: fix-flaky-login] from A", at: "2026-09-22T10:00:01.000Z" }];
+    const b1: Item[] = [{ type: "user_message", text: "[topic: fix-flaky-login] from B", at: "2026-09-22T10:01:01.000Z" }];
+    const a2: Item[] = [...a1, { type: "user_message", text: "[topic: fix-flaky-login] A again", at: "2026-09-22T10:02:02.000Z" }];
+    await log.sync(fakePaseo(() => a1, undefined, 1, 0), { id: MATE, updatedAt: "t1" });
+    await log.sync(fakePaseo(() => b1, undefined, 1, 1), { id: MATE_B, updatedAt: "t1" });
+    await log.sync(fakePaseo(() => a2, undefined, 1, 2), { id: MATE, updatedAt: "t2" });
+    expect((await log.messages("fix-flaky-login")).map((m) => [m.id, m.text])).toEqual([
+      [`${MATE}:1`, "from A"],
+      [`${MATE_B}:1`, "from B"],
+      [`${MATE}:2`, "A again"],
+    ]);
   });
 
   it("reads nothing for a topic that was never filed", async () => {

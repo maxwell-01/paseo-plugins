@@ -68,22 +68,35 @@ export function openId(card: FleetCard): string | null {
  * than the one the captain last had open (`read`, topic id to seq). A card with an agent goes by the agent
  * alone, since it opens the agent's transcript and never the thread that would mark the topic read.
  */
-export function isUnread(card: FleetCard, read: Readonly<Record<string, number>>): boolean {
+export function isUnread(card: FleetCard, read: Readonly<Record<string, string>>): boolean {
   if (card.agent !== null) return card.agent.requiresAttention === true;
   const last = card.lastMessage;
   const topicId = card.backlog?.id;
   if (last === null || last.from !== "mate" || topicId === undefined) return false;
-  return last.seq > (read[topicId] ?? -1);
+  return last.at > (read[topicId] ?? "");
 }
 
-/** The read map with `topicId` read up to `seq`; null when it already was, so nothing is saved for it. */
+/** The read map with `topicId` read up to the message said at `at`; null when it already was, so nothing is saved for it. */
 export function readPatch(
-  read: Readonly<Record<string, number>>,
+  read: Readonly<Record<string, string>>,
   topicId: string,
-  seq: number,
-): Record<string, number> | null {
-  if (seq <= (read[topicId] ?? -1)) return null;
-  return { ...read, [topicId]: seq };
+  at: string,
+): Record<string, string> | null {
+  if (at <= (read[topicId] ?? "")) return null;
+  return { ...read, [topicId]: at };
+}
+
+/**
+ * The card an open view is about. Found by the id it was opened under; failing that by the task id it had
+ * then, because a backlog line that gains an `(agent: …)` changes its card's `openId` from the task id to
+ * the agent's. Null only when neither is on the board any more.
+ */
+export function findOpenCard(cards: readonly FleetCard[], id: string, taskId: string | null): FleetCard | null {
+  return (
+    cards.find((card) => openId(card) === id) ??
+    (taskId === null ? null : cards.find((card) => card.taskId === taskId)) ??
+    null
+  );
 }
 
 /**
