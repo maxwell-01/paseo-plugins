@@ -33,10 +33,12 @@ import { allAnswered, buildAnswers, dismissSubmitsEmpty, parseQuestions, toggleO
 import {
   boardItems,
   boardRows,
+  captainColumn,
   contextPercent,
   contextTone,
   errorText,
   formatTokenCount,
+  groupCaptainCards,
   moveColumn,
   opensAsLeft,
   orderedColumns,
@@ -990,6 +992,58 @@ function crewCard(key: string, agent: Partial<AgentSummary> | null, column: Flee
     url: null,
   };
 }
+
+describe("the captain's columns", () => {
+  function held(column: FleetCard["column"], hold: string | null, section: BacklogItem["section"] = "in-flight"): FleetCard {
+    const card = crewCard("fix-flaky-login", null, column);
+    return {
+      ...card,
+      backlog: {
+        section,
+        id: "fix-flaky-login",
+        title: "Fix the flaky login test",
+        project: null,
+        kind: null,
+        mode: null,
+        agentId: null,
+        hold,
+        actions: [],
+        blockedBy: null,
+        since: null,
+        url: null,
+        reportPath: null,
+        outcome: null,
+      },
+    };
+  }
+
+  it("sends a held, blocked or failed card to Needs you", () => {
+    expect(captainColumn(held("queued", "Which database?"))).toBe("needs-you");
+    expect(captainColumn(held("working", "Which database?"))).toBe("needs-you");
+    expect(captainColumn(held("blocked", null))).toBe("needs-you");
+    expect(captainColumn(held("failed", null))).toBe("needs-you");
+  });
+
+  it("sends working and idle cards to Working, queued and parked cards to Queued", () => {
+    expect(captainColumn(held("working", null))).toBe("working");
+    expect(captainColumn(held("idle", null))).toBe("working");
+    expect(captainColumn(held("queued", null, "queued"))).toBe("queued");
+    expect(captainColumn(held("parked", null))).toBe("queued");
+  });
+
+  it("sends a finished card to Done even when a hold is left on its line", () => {
+    expect(captainColumn(held("done", null, "done"))).toBe("done");
+    expect(captainColumn(held("working", "Which database?", "done"))).toBe("done");
+    expect(captainColumn(crewCard("landed", { status: "idle" }, "done"))).toBe("done");
+  });
+
+  it("groups cards in the fixed order Needs you, Working, Queued, Done", () => {
+    const groups = groupCaptainCards([held("failed", null), held("working", null), held("parked", null)]);
+    expect([...groups.keys()]).toEqual(["needs-you", "working", "queued", "done"]);
+    expect(groups.get("needs-you")?.map((card) => card.column)).toEqual(["failed"]);
+    expect(groups.get("done")).toEqual([]);
+  });
+});
 
 describe("the sidebar row's badge", () => {
   it("counts the live crewmates in the Working and Idle columns, and nothing else", () => {

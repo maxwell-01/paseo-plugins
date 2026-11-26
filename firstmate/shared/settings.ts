@@ -18,6 +18,8 @@ export const displaySettings = defineSettings({
   schema: z.object({
     /** Board columns, in the order the captain arranged them. Unknown ids are dropped when read. */
     columnOrder: z.array(z.string()).default([...COLUMN_IDS]),
+    /** "crew" draws the crew's seven columns; "captain" draws Needs you, Working, Queued and Done. */
+    boardColumns: z.enum(["crew", "captain"]).default("crew"),
     /** Columns folded down to a narrow strip. */
     collapsedColumns: z.array(z.string()).default([]),
     /**

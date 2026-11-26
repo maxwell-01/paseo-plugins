@@ -529,6 +529,7 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
   const board = (
     <Board
       cards={data.cards}
+      columns={values.boardColumns}
       order={order}
       collapsed={values.collapsedColumns}
       theme={theme}
@@ -540,7 +541,7 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
       onOpenFile={openFile}
       onWatch={setWatching}
       onChanged={refresh}
-      onToggleColumn={(id: ColumnId) =>
+      onToggleColumn={(id: string) =>
         save({
           collapsedColumns: values.collapsedColumns.includes(id)
             ? values.collapsedColumns.filter((column) => column !== id)

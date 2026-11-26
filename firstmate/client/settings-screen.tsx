@@ -214,6 +214,22 @@ export function SettingsScreen({ theme, layout }: PluginSurfaceProps) {
         </SettingsSection>
         <SettingsSection title="Board">
           <SettingsSelect
+            label="Columns"
+            value={display.status === "ready" ? display.values.boardColumns : "crew"}
+            options={[
+              { label: "Crew states (seven)", value: "crew" },
+              { label: "Needs you, Working, Queued, Done", value: "captain" },
+            ]}
+            disabled={display.status !== "ready"}
+            onValueChange={(value) => {
+              if (display.status !== "ready") return;
+              const boardColumns = value === "captain" ? "captain" : "crew";
+              void display.save({ ...display.values, boardColumns }, display.revision).then((ok) => {
+                if (!ok) toast.error(display.saveError ?? "The columns were not saved.");
+              });
+            }}
+          />
+          <SettingsSelect
             label="Refresh every"
             value={String(display.status === "ready" ? display.values.pollSeconds : 5)}
             options={POLL_SECONDS.map((seconds) => ({ label: `${seconds} seconds`, value: String(seconds) }))}

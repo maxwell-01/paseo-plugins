@@ -1,5 +1,6 @@
 /**
- * The crew board: seven columns in the order the captain arranged them, each
+ * The crew board: seven columns in the order the captain arranged them (or,
+ * as a setting, four in a fixed order: Needs you, Working, Queued, Done), each
  * foldable to a narrow strip. A column with nobody in it is not drawn at all,
  * folded or not. On a wide screen the rest sit in one row when there are three
  * or fewer and in two past that, the extra in the second; on a phone they
@@ -20,14 +21,19 @@ import { Icon } from "@getpaseo/plugin/client/react-native";
 import { useMemo } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 
-import type { ColumnId, FleetCard, Suggestion, WatchSummary } from "../shared/fleet";
+import { COLUMN_IDS, type ColumnId, type FleetCard, type Suggestion, type WatchSummary } from "../shared/fleet";
 import { CrewCard } from "./card";
 import type { MateAsk } from "./card-answer";
 import {
   boardItems,
   boardRows,
+  CAPTAIN_COLUMN_IDS,
+  CAPTAIN_COLUMNS,
+  captainTone,
+  type CaptainColumnId,
   COLUMNS,
   columnTone,
+  groupCaptainCards,
   groupCards,
   moveColumn,
   SUGGESTIONS_CARD,
@@ -39,8 +45,18 @@ import { FONT_SIZE } from "./type-scale";
 
 const COLLAPSED_WIDTH = 40;
 
+function isCrewColumn(id: string): id is ColumnId {
+  return (COLUMN_IDS as readonly string[]).includes(id);
+}
+
+function isCaptainColumn(id: string): id is CaptainColumnId {
+  return (CAPTAIN_COLUMN_IDS as readonly string[]).includes(id);
+}
+
 interface BoardProps {
   cards: readonly FleetCard[];
+  /** Which layout draws: the crew's seven columns in `order`, or the captain's four. */
+  columns: "crew" | "captain";
   order: readonly ColumnId[];
   collapsed: readonly string[];
   theme: PluginTheme;
@@ -57,16 +73,23 @@ interface BoardProps {
   onOpenFile: (path: string) => void;
   /** Shows one crewmate's card and transcript in place of the board. */
   onWatch: (agentId: string) => void;
-  onToggleColumn: (id: ColumnId) => void;
+  onToggleColumn: (id: string) => void;
   /** Saves a new whole column order, hidden columns included. */
   onReorder: (order: ColumnId[]) => void;
   onChanged: () => void;
 }
 
 export function Board(props: BoardProps) {
-  const { cards, order, collapsed, theme, compact, suggestions, watches } = props;
-  const groups = useMemo(() => groupCards(cards), [cards]);
-  const shown = useMemo(() => order.filter((id) => (groups.get(id)?.length ?? 0) > 0), [order, groups]);
+  const { cards, columns, order, collapsed, theme, compact, suggestions, watches } = props;
+  const captain = columns === "captain";
+  const groups: ReadonlyMap<string, FleetCard[]> = useMemo(
+    () => (captain ? groupCaptainCards(cards) : groupCards(cards)),
+    [captain, cards],
+  );
+  const shown: readonly string[] = useMemo(
+    () => (captain ? [...CAPTAIN_COLUMN_IDS] : order).filter((id) => (groups.get(id)?.length ?? 0) > 0),
+    [captain, order, groups],
+  );
   const styles = useMemo(() => {
     const { colors } = theme;
     return {
@@ -112,9 +135,15 @@ export function Board(props: BoardProps) {
     };
   }, [theme, compact]);
 
-  function renderHeader(id: ColumnId, folded: boolean, count: number) {
-    const meta = COLUMNS[id];
-    const tone = columnTone(theme, id);
+  function columnMeta(id: string): { title: string; icon: string; tone: string } {
+    if (isCaptainColumn(id)) return { ...CAPTAIN_COLUMNS[id], tone: captainTone(theme, id) };
+    if (isCrewColumn(id)) return { ...COLUMNS[id], tone: columnTone(theme, id) };
+    throw new Error(`Unknown board column: ${id}`);
+  }
+
+  function renderHeader(id: string, folded: boolean, count: number) {
+    const meta = columnMeta(id);
+    const movable = captain ? null : isCrewColumn(id) ? id : null;
     const index = shown.indexOf(id);
     const toggle = (
       <Pressable
@@ -130,7 +159,7 @@ export function Board(props: BoardProps) {
       return (
         <View style={styles.headerFolded}>
           {toggle}
-          <Icon name={meta.icon} size={14} color={tone} />
+          <Icon name={meta.icon} size={14} color={meta.tone} />
           <Text style={styles.count}>{count}</Text>
         </View>
       );
@@ -138,12 +167,12 @@ export function Board(props: BoardProps) {
     return (
       <View style={styles.header}>
         {toggle}
-        <Icon name={meta.icon} size={14} color={tone} />
+        <Icon name={meta.icon} size={14} color={meta.tone} />
         <Text style={styles.title} numberOfLines={1}>
           {meta.title}
         </Text>
         <Text style={styles.count}>{count}</Text>
-        {folded ? null : (
+        {folded || movable === null ? null : (
           <>
             <Pressable
               accessibilityRole="button"
@@ -151,7 +180,7 @@ export function Board(props: BoardProps) {
               accessibilityState={{ disabled: index <= 0 }}
               disabled={index <= 0}
               style={styles.arrow}
-              onPress={() => props.onReorder(moveColumn(order, id, -1, shown))}
+              onPress={() => props.onReorder(moveColumn(order, movable, -1, shown.filter(isCrewColumn)))}
             >
               <Icon name={compact ? "ChevronUp" : "ChevronLeft"} size={13} color={theme.colors.foregroundMuted} />
             </Pressable>
@@ -161,7 +190,7 @@ export function Board(props: BoardProps) {
               accessibilityState={{ disabled: index >= shown.length - 1 }}
               disabled={index >= shown.length - 1}
               style={styles.arrow}
-              onPress={() => props.onReorder(moveColumn(order, id, 1, shown))}
+              onPress={() => props.onReorder(moveColumn(order, movable, 1, shown.filter(isCrewColumn)))}
             >
               <Icon name={compact ? "ChevronDown" : "ChevronRight"} size={13} color={theme.colors.foregroundMuted} />
             </Pressable>
@@ -275,7 +304,7 @@ export function Board(props: BoardProps) {
                 {renderHeader(id, folded, entries.length)}
                 {folded ? (
                   <Text style={styles.foldedTitle} numberOfLines={1}>
-                    {COLUMNS[id].title}
+                    {columnMeta(id).title}
                   </Text>
                 ) : (
                   <ScrollView contentContainerStyle={styles.body}>{renderCards(entries)}</ScrollView>
