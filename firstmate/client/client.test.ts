@@ -190,6 +190,17 @@ describe("the topic of a row", () => {
   });
 });
 
+describe("activityRows' injected messages", () => {
+  it("folds notices and watches, and leaves a cross-daemon or agent message as the prompt it is", () => {
+    const rows = activityRows([
+      entry({ type: "user_message", text: "[cross-daemon 3f2a9c1e] Harbour asks" }, 1),
+      entry({ type: "user_message", text: '<agent-message from="fix-flaky-login">\nTests pass.\n</agent-message>' }, 2),
+      entry({ type: "user_message", text: "<firstmate-board>\nThe captain spoke.\n</firstmate-board>" }, 3),
+    ]);
+    expect(rows.map((row) => row.kind)).toEqual(["prompt", "prompt", "event"]);
+  });
+});
+
 describe("visibleRows", () => {
   const rows = transcriptRows([
     entry({ type: "user_message", text: "fix the login" }, 1),

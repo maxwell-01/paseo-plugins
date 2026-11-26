@@ -35,6 +35,12 @@ describe("classifyUserMessage", () => {
     expect(classifyUserMessage(long)?.summary).toHaveLength(120);
   });
 
+  it("folds only a real cross-daemon header, never the captain's words that start alike", () => {
+    expect(classifyUserMessage("[cross-daemon notice 3f2a9c1e] Harbour is back")).toMatchObject({ source: "cross-daemon" });
+    expect(classifyUserMessage("[cross-daemon plugin] is broken")).toBeNull();
+    expect(classifyUserMessage("[cross-daemon 3f2a9c1] too short")).toBeNull();
+  });
+
   it("folds a watch message — its blocks one after another, a dropped tag first — to the watches' names", () => {
     const id = "firstmate-watch-5f0c";
     const one = '<firstmate-watch name="pr-watch" ran="2026-09-25T10:05:00Z">\nPull requests…\n</firstmate-watch>';

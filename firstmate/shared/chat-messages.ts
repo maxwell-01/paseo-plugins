@@ -16,6 +16,9 @@ export function isWatchMessageId(id: string | null | undefined): boolean {
   return typeof id === "string" && id.startsWith(WATCH_MESSAGE_ID_PREFIX);
 }
 
+/** The header another daemon's message opens with; the captain may write "[cross-daemon" in words of their own. */
+const CROSS_DAEMON_HEADER = /^\[cross-daemon (notice )?[0-9a-f]{8}\]/;
+
 /** What put a message that is not the captain's into the inbox; these are the kinds the chat can hide. */
 export type ChatSource = "cross-daemon" | "agent" | "notice" | "watch";
 
@@ -80,7 +83,7 @@ export function classifyUserMessage(text: string, clientMessageId?: string): Cla
     const watch = watchSummary(trimmed);
     if (watch !== null) return { source: "watch", summary: watch };
   }
-  if (trimmed.startsWith("[cross-daemon")) {
+  if (CROSS_DAEMON_HEADER.test(trimmed)) {
     return { source: "cross-daemon", summary: clip(trimmed.split("\n")[0] ?? trimmed) };
   }
   const agent = openingTag(trimmed, "agent-message");

@@ -218,7 +218,9 @@ export function activityRows(entries: readonly TimelineEntry[]): ActivityRow[] {
     const last = rows[rows.length - 1];
     switch (item.type) {
       case "user_message": {
-        const injected = classifyUserMessage(item.text, item.clientMessageId);
+        const classified = classifyUserMessage(item.text, item.clientMessageId);
+        // A crewmate's own inbox shows other agents' and daemons' messages in full: they are its brief.
+        const injected = classified?.source === "watch" || classified?.source === "notice" ? classified : null;
         rows.push(
           injected === null ? { key, kind: "prompt", text: item.text } : { key, kind: "event", text: injected.summary },
         );
