@@ -21,7 +21,7 @@ import { Pressable, Text, View } from "react-native";
 
 import { exitCrew, interruptCrew, relaunchCrew, steerCrew, type ColumnId, type FleetCard } from "../shared/fleet";
 import { answerKey, answers as answerDrafts, cardActions, isHeld, submitAnswer, type MateAsk } from "./card-answer";
-import { agentStatusLabel, agentStatusTone, columnTone, lastMessageLine, modelLabel, opensAsLeft, relativeTime } from "./format";
+import { agentStatusLabel, agentStatusTone, canEndOrRelaunch, columnTone, lastMessageLine, modelLabel, opensAsLeft, relativeTime } from "./format";
 import { Chip, IconButton, errorText } from "./ui";
 import { FONT_SIZE, lineHeightFor } from "./type-scale";
 
@@ -311,23 +311,27 @@ export function CrewCard({
               disabled={busy || (agent.status !== "running" && agent.status !== "initializing")}
               onPress={() => run("Interrupted.", () => interrupt({ agentId: agent.id }))}
             />
-            <IconButton
-              icon="RotateCcw"
-              label="Relaunch"
-              showLabel
-              theme={theme}
-              disabled={busy}
-              onPress={() => setDraft({ kind: "relaunch", text: "" })}
-            />
-            <IconButton
-              icon="Power"
-              label="End"
-              showLabel
-              tone="danger"
-              theme={theme}
-              disabled={busy}
-              onPress={() => setDraft({ kind: "end" })}
-            />
+            {canEndOrRelaunch(agent) ? (
+              <>
+              <IconButton
+                icon="RotateCcw"
+                label="Relaunch"
+                showLabel
+                theme={theme}
+                disabled={busy}
+                onPress={() => setDraft({ kind: "relaunch", text: "" })}
+              />
+              <IconButton
+                icon="Power"
+                label="End"
+                showLabel
+                tone="danger"
+                theme={theme}
+                disabled={busy}
+                onPress={() => setDraft({ kind: "end" })}
+              />
+              </>
+            ) : null}
           </View>
         ) : null}
 

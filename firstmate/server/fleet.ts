@@ -196,15 +196,15 @@ export function backlogColumn(item: BacklogItem): ColumnId {
 const AGENT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * The agents unfinished backlog items name by a full UUID that no crewmate already is, once each. An item
+ * The agents unfinished backlog items name by a full UUID that no crewmate or the first mate already is, once each. An item
  * made by hand, or by a first mate that skipped the crew labels, has its own agent with no label for the
  * board to find it by. A prefix or a note about another daemon is no UUID and is left alone.
  */
-export function ownAgentIds(backlog: readonly BacklogItem[], crewIds: ReadonlySet<string>): string[] {
+export function ownAgentIds(backlog: readonly BacklogItem[], takenIds: ReadonlySet<string>): string[] {
   const ids = backlog.flatMap((item) =>
     item.section !== "done" && item.agentId !== null && AGENT_UUID.test(item.agentId) ? [item.agentId] : [],
   );
-  return [...new Set(ids)].filter((id) => !crewIds.has(id));
+  return [...new Set(ids)].filter((id) => !takenIds.has(id));
 }
 
 export interface CrewMember {
@@ -325,7 +325,17 @@ export async function loadFleet(
       warnings.push(`The suggestions could not be read: ${describe(error)}`);
       return [];
     }),
-    resolveMate(paseo, config),
+    (async function mateWithTopics() {
+      const resolved = await resolveMate(paseo, config);
+      const latest =
+        topics === null
+          ? new Map<string, TopicMessage>()
+          : await fileTopics(topics, paseo, resolved.agent).catch((error: unknown) => {
+              warnings.push(`The topics could not be filed: ${describe(error)}`);
+              return new Map<string, TopicMessage>();
+            });
+      return { ...resolved, latest };
+    })(),
     listAgents(paseo, { labels: { [CREW_LABELS.role]: CREW_LABELS.crewRole } }).catch((error: unknown) => {
       warnings.push(`Paseo could not list the crew: ${describe(error)}`);
       return [];
@@ -341,17 +351,9 @@ export async function loadFleet(
     }),
   ]);
 
-  const latest =
-    topics === null
-      ? new Map<string, TopicMessage>()
-      : await fileTopics(topics, paseo, mate.agent).catch((error: unknown) => {
-          warnings.push(`The topics could not be filed: ${describe(error)}`);
-          return new Map<string, TopicMessage>();
-        });
-
   const ownAgents = (
     await Promise.all(
-      ownAgentIds(backlog, new Set(crewAgents.map((agent) => agent.id))).map((id) =>
+      ownAgentIds(backlog, new Set([...crewAgents.map((agent) => agent.id), ...(mate.agent === null ? [] : [mate.agent.id])])).map((id) =>
         fetchLiveAgent(paseo, id).catch((error: unknown) => {
           warnings.push(`Paseo could not look up agent ${id}: ${describe(error)}`);
           return null;
@@ -378,7 +380,7 @@ export async function loadFleet(
     mate: mate.agent === null ? null : summarizeAgent(mate.agent),
     mateMissing: mate.missing,
     mateInHome: mate.agent === null ? true : await sameDirectory(mate.agent.cwd, home),
-    cards: buildCards(backlog, crew, latest),
+    cards: buildCards(backlog, crew, mate.latest),
     projects,
     suggestions,
     watches,

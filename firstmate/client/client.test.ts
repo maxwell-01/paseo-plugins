@@ -33,6 +33,7 @@ import { isDirty, markSaved, type OpenFile } from "./open-file";
 import { allAnswered, buildAnswers, dismissSubmitsEmpty, parseQuestions, toggleOption } from "./questions";
 import {
   boardItems,
+  canEndOrRelaunch,
   boardRows,
   captainColumn,
   contextPercent,
@@ -53,7 +54,7 @@ import {
   watchStatusText,
   watchTone,
 } from "./format";
-import { watchPath, type AgentSummary, type BacklogItem, type FleetCard, type WatchSummary } from "../shared/fleet";
+import { CREW_LABELS, watchPath, type AgentSummary, type BacklogItem, type FleetCard, type WatchSummary } from "../shared/fleet";
 import { activeCrewCount } from "./screen";
 import { displaySettings } from "../shared/settings";
 import { transcriptRows, visibleRows, type TimelineEntry } from "./transcript-rows";
@@ -187,6 +188,27 @@ describe("the topic of a row", () => {
     expect(topicsOf([entry({ type: "user_message", text: "[topic: dark-mode]" }, 1)])).toEqual([
       ["captain", "dark-mode", "(attachments)"],
     ]);
+  });
+});
+
+describe("activityRows' injected messages", () => {
+  it("folds notices and watches, and leaves a cross-daemon or agent message as the prompt it is", () => {
+    const rows = activityRows([
+      entry({ type: "user_message", text: "[cross-daemon 3f2a9c1e] Harbour asks" }, 1),
+      entry({ type: "user_message", text: '<agent-message from="fix-flaky-login">\nTests pass.\n</agent-message>' }, 2),
+      entry({ type: "user_message", text: "<firstmate-board>\nThe captain spoke.\n</firstmate-board>" }, 3),
+    ]);
+    expect(rows.map((row) => row.kind)).toEqual(["prompt", "prompt", "event"]);
+  });
+});
+
+describe("canEndOrRelaunch", () => {
+  const withLabels = (labels: Record<string, string>) => ({ labels }) as AgentSummary;
+
+  it("is for an agent with the crew label only, not a backlog item's own agent", () => {
+    expect(canEndOrRelaunch(withLabels({ [CREW_LABELS.role]: CREW_LABELS.crewRole }))).toBe(true);
+    expect(canEndOrRelaunch(withLabels({}))).toBe(false);
+    expect(canEndOrRelaunch(withLabels({ [CREW_LABELS.role]: CREW_LABELS.mateRole }))).toBe(false);
   });
 });
 

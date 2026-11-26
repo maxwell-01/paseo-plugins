@@ -28,52 +28,29 @@ describe("fileTopicMessages", () => {
   const summary = (items: FilingItem[]) =>
     fileTopicMessages(items).map(({ topicId, message }) => [topicId, message.from, message.seq, message.text]);
 
-  it("files a tagged captain message and the replies that follow it", () => {
+  it("files a tagged captain message and a reply that starts with its own tag, nothing else", () => {
     seq = 0;
     expect(
       summary([
         item("user_message", "[topic: fix-flaky-login] any news?"),
-        item("assistant_message", "Aye, "),
+        item("assistant_message", "[topic: fix-flaky-login] Aye, "),
         item("assistant_message", "looking."),
         item("tool_call", ""),
-        item("assistant_message", "Tests pass."),
+        item("assistant_message", "Tests pass, untagged."),
+        item("user_message", "[cross-daemon 3f2a9c1e] Harbour asks"),
+        item("assistant_message", "Answering Harbour."),
+        item("user_message", "what is for lunch?"),
+        item("user_message", "[topic: add-dark-mode] and now?"),
+        item("assistant_message", "[topic: add-dark-mode] "),
+        item("assistant_message", "Dark."),
+        item("assistant_message", ""),
       ]),
     ).toEqual([
       ["fix-flaky-login", "captain", 1, "any news?"],
       ["fix-flaky-login", "mate", 2, "Aye, looking."],
-      ["fix-flaky-login", "mate", 5, "Tests pass."],
+      ["add-dark-mode", "captain", 9, "and now?"],
+      ["add-dark-mode", "mate", 10, "Dark."],
     ]);
-  });
-
-  it("ends the topic at an untagged captain message or an injected one, and files none of them", () => {
-    seq = 0;
-    expect(
-      summary([
-        item("user_message", "[topic: fix-flaky-login] any news?"),
-        item("assistant_message", "Nothing yet."),
-        item("user_message", "[cross-daemon 3f2a9c1e] Harbour asks"),
-        item("assistant_message", "Answering Harbour."),
-        item("user_message", "[topic: fix-flaky-login] and now?"),
-        item("user_message", "what is for lunch?"),
-        item("assistant_message", "Not my department."),
-      ]),
-    ).toEqual([
-      ["fix-flaky-login", "captain", 1, "any news?"],
-      ["fix-flaky-login", "mate", 2, "Nothing yet."],
-      ["fix-flaky-login", "captain", 5, "and now?"],
-    ]);
-  });
-
-  it("files a reply that starts with its own tag there and moves the current topic to it", () => {
-    seq = 0;
-    expect(
-      summary([
-        item("user_message", "what is going on?"),
-        item("assistant_message", "[topic: add-dark-mode] The dark mode crewmate is "),
-        item("assistant_message", "done."),
-        item("assistant_message", ""),
-      ]),
-    ).toEqual([["add-dark-mode", "mate", 2, "The dark mode crewmate is done."]]);
   });
 
   it("does not file a captain's pasted watch block as injected, only a watch message with the plugin's id", () => {

@@ -71,7 +71,7 @@ describe("mergeTopicMessages", () => {
 describe("TopicLog", () => {
   const conversation: Item[] = [
     { type: "user_message", text: "[topic: fix-flaky-login] any news?" },
-    { type: "assistant_message", text: "Looking." },
+    { type: "assistant_message", text: "[topic: fix-flaky-login] Looking." },
     { type: "user_message", text: "unrelated" },
     { type: "assistant_message", text: "Not filed." },
   ];
@@ -99,7 +99,7 @@ describe("TopicLog", () => {
     await log.sync(fakePaseo(() => conversation), { id: MATE, updatedAt: "t1" });
     const tail: Item[] = [
       { type: "user_message", text: "[topic: fix-flaky-login] again" },
-      { type: "assistant_message", text: "Still " },
+      { type: "assistant_message", text: "[topic: fix-flaky-login] Still " },
     ];
     await log.sync(fakePaseo(() => tail, undefined, 5), { id: MATE, updatedAt: "t2" });
     tail.push({ type: "assistant_message", text: "looking." });
@@ -116,6 +116,17 @@ describe("TopicLog", () => {
     const log = new TopicLog();
     await log.sync(fakePaseo(() => conversation), { id: MATE, updatedAt: "t1" });
     await log.sync(fakePaseo(() => conversation.slice(0, 2)), { id: "7b2e0000-0000-4000-8000-000000000002", updatedAt: "t1" });
+    expect((await log.messages("fix-flaky-login")).map((m) => m.text)).toEqual(["any news?", "Looking.", "any news?", "Looking."]);
+  });
+
+  it("files a first mate's tail once, however often first mates are swapped", async () => {
+    const log = new TopicLog();
+    const A = fakePaseo(() => conversation);
+    const B = fakePaseo(() => conversation.slice(0, 2));
+    const MATE_B = "7b2e0000-0000-4000-8000-000000000002";
+    await log.sync(A, { id: MATE, updatedAt: "t1" });
+    await log.sync(B, { id: MATE_B, updatedAt: "t1" });
+    await log.sync(A, { id: MATE, updatedAt: "t2" });
     expect((await log.messages("fix-flaky-login")).map((m) => m.text)).toEqual(["any news?", "Looking.", "any news?", "Looking."]);
   });
 
