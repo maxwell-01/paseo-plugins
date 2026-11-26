@@ -7,6 +7,42 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Every version
 as `@gpambrozio/paseo-firstmate` and tagged here, so a version is something to install and a line to
 read before you move.
 
+## [0.7.0] — 2026-11-26
+
+A screen of its own for what you and the first mate are talking about.
+
+### Added
+
+- **The Topics screen**, with its own row in the sidebar. The row's badge counts the topics that wait on
+  you. The screen is the full width of the window and has three views:
+  - **Board.** *Needs you*, *Working*, *Queued* and *Done*, side by side. A card is a title of at most
+    two lines, the project and a date, and then either the question with its answer buttons (the first
+    one is the first mate's recommendation) or one line of the last thing said. A dot marks words you
+    have not opened. *Done* shows the 10 newest and counts the rest. On a phone the columns are one
+    list, without *Done*.
+  - **A topic.** One click on a card opens it: the messages on the left, each with who said it, yours
+    on the right; the box that sends the next one, which says who gets it; and a panel with the status,
+    project, who the topic talks to, since when, links, what it waits for with its buttons, the first
+    mate's notes and the backlog id. A topic with its own agent shows what you and that agent said to
+    each other, without tool calls, and **Open agent in Paseo** shows the rest. On a phone, **Details**
+    swaps the messages for the panel.
+  - **General chat.** The conversation with the first mate without the messages that belong to a topic.
+- **Open Topics** in ⌘K.
+
+### Changed
+
+- An answer button pressed on the Topics screen sends its prompt under the topic's tag, so the answer is
+  filed with the topic. The buttons on the FirstMate board send it as before.
+- The line over a reply box now reads "Sends to the first mate, tagged [topic: <id>]" or "Sends to <the
+  worker>".
+- A backlog item that is ticked, or whose line says `(merged …)`, `(done …)`, `(landed …)` or `(closed …)`, counts as done
+  even while it is still under *In flight*. A `(failed …)` or `(abandoned …)` line stays where it was.
+
+### Fixed
+
+- A `(note: …)` or `(hold: …)` whose text has parentheses of its own was left in the card's title. It is
+  now read as one group, whatever it holds between balanced parentheses.
+
 ## [0.6.0] — 2026-11-26
 
 Everything you say about one backlog item can now live on its card instead of in the one long chat.

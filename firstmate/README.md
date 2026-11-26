@@ -147,6 +147,23 @@ your permission stays flagged until you answer.
 A worker's workspace and session also get a **FirstMate** tab showing its card, with a box for telling
 the first mate something about it.
 
+## The Topics screen
+
+**Topics**, in the sidebar, is the same backlog as a board of what you and the first mate are talking
+about. Its badge counts the topics that wait on you.
+
+- **Board**: *Needs you*, *Working*, *Queued* and *Done* across the whole window. A topic that needs
+  you shows its question and the first mate's answer buttons; any other shows the last thing said. A dot
+  means there are words you have not opened. *Done* shows the 10 newest. On a phone the columns are one
+  list, without *Done*.
+- **A topic**: click a card. Its messages are on the left, with the box that sends the next one and
+  says who gets it: the topic's own agent when it has one, else the first mate, tagged with the topic.
+  Its details are on the right (behind **Details** on a phone): status, project, who it talks to, links,
+  what it waits for, the first mate's notes.
+- **General chat**: your conversation with the first mate, without the messages filed under a topic.
+
+The FirstMate screen stays as it is, with the crew's columns, the files, the suggestions and the watches.
+
 ## Topics
 
 Every card can be opened. A card with a worker opens **Watch**; one without opens its **thread**: the
