@@ -7,6 +7,46 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Every version
 as `@gpambrozio/paseo-firstmate` and tagged here, so a version is something to install and a line to
 read before you move.
 
+## [0.8.0] — 2026-11-26
+
+One screen again: the board of topics is now the main part of the FirstMate screen.
+
+### Changed
+
+- **The board of topics is in the FirstMate screen**, where the chat was. A **Board / General chat**
+  switch is the first thing in that pane and stays in the same place in both views. *Board* shows
+  *Needs you*, *Working*, *Queued* and *Done*, and one click opens a topic. *General chat* is the
+  conversation with the first mate, with who said each message, and without the messages of any backlog
+  item: each has its thread on the board.
+- **The crew panel starts hidden.** The crew's columns, the Suggestions and Watches cards, Watch and the
+  Files view are where they were, on the right, behind the panel button in the header (**Show the crew
+  panel**). With the panel shown and the main pane narrow, the board of topics is one list, and a topic
+  shows its messages or its details, one at a time. A host that already saved its layout keeps the
+  panel as it was.
+- A suggestion or a card's answer button pressed in the crew panel switches the main pane to *General
+  chat*, so you see the message go out. A message sent from the board of topics leaves you where you are.
+- The "waiting for your answer" banner also shows while the board covers the chat. **Show** opens
+  *General chat*.
+- **The sidebar row's badge counts the topics that wait on you**, in the warning colour. It counted the
+  working and idle workers before. There is no badge before there is a first mate.
+- **The line under the title counts what you can act on**: "2 need you · 1 working · 3 queued · 4 done in
+  7 days", whatever the *Columns* setting. It counted everything ever done before.
+- **Done shows the newest 10 and a "Show 10 more" button**, on the board of topics and in the crew panel.
+  The *Done* heading on the board of topics no longer has a count.
+- On a phone, the **First mate** tab holds the same pane: the switch, the board and the chat. The other
+  tabs did not change.
+
+### Added
+
+- **A worker's questions and permission requests in its topic.** A topic with its own agent shows what
+  that agent waits on at the end of its messages, and you answer it there. The card's heading names the
+  agent that asks.
+
+### Removed
+
+- The separate **Topics** screen, its sidebar row and **Open Topics** in ⌘K. **Open FirstMate** finds the
+  screen under "topics" too.
+
 ## [0.7.0] — 2026-11-26
 
 A screen of its own for what you and the first mate are talking about.
