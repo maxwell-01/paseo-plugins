@@ -193,6 +193,20 @@ export function backlogColumn(item: BacklogItem): ColumnId {
   return "queued";
 }
 
+const AGENT_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The agents unfinished backlog items name by a full UUID that no crewmate already is, once each. An item
+ * made by hand, or by a first mate that skipped the crew labels, has its own agent with no label for the
+ * board to find it by. A prefix or a note about another daemon is no UUID and is left alone.
+ */
+export function ownAgentIds(backlog: readonly BacklogItem[], crewIds: ReadonlySet<string>): string[] {
+  const ids = backlog.flatMap((item) =>
+    item.section !== "done" && item.agentId !== null && AGENT_UUID.test(item.agentId) ? [item.agentId] : [],
+  );
+  return [...new Set(ids)].filter((id) => !crewIds.has(id));
+}
+
 export interface CrewMember {
   agent: AgentSummary;
   report: CrewReportSummary | null;
@@ -335,9 +349,21 @@ export async function loadFleet(
           return new Map<string, TopicMessage>();
         });
 
-  reports.retain(new Set(crewAgents.map((agent) => agent.id)));
+  const ownAgents = (
+    await Promise.all(
+      ownAgentIds(backlog, new Set(crewAgents.map((agent) => agent.id))).map((id) =>
+        fetchLiveAgent(paseo, id).catch((error: unknown) => {
+          warnings.push(`Paseo could not look up agent ${id}: ${describe(error)}`);
+          return null;
+        }),
+      ),
+    )
+  ).filter((agent): agent is PaseoAgent => agent !== null);
+  const boardAgents = [...crewAgents, ...ownAgents];
+
+  reports.retain(new Set(boardAgents.map((agent) => agent.id)));
   const crew = await Promise.all(
-    crewAgents.map(async (agent) => ({
+    boardAgents.map(async (agent) => ({
       agent: summarizeAgent(agent),
       report: await reports.reportFor(paseo, agent).catch((error: unknown) => {
         console.error(`[firstmate] could not read the status line of ${agent.id}:`, error);

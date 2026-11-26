@@ -112,11 +112,11 @@ export default function contribute(server: PluginServerContext) {
   });
 
   server.handle(steerCrewRpc, async ({ agentId, text }, { paseo }) => {
-    await steerCrew(paseo, steers, agentId, text);
+    await steerCrew(paseo, steers, agentId, text, resolveHome(await readFirstmateConfig()));
     return {};
   });
   server.handle(interruptCrewRpc, async ({ agentId }, { paseo }) => {
-    await interruptCrew(paseo, agentId);
+    await interruptCrew(paseo, agentId, resolveHome(await readFirstmateConfig()));
     return {};
   });
   server.handle(exitCrewRpc, async ({ agentId }, { paseo }) => {
