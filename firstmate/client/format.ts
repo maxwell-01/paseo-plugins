@@ -40,6 +40,11 @@ export const CAPTAIN_COLUMNS: Readonly<Record<CaptainColumnId, { title: string; 
   done: { title: "Done", icon: "Check" },
 };
 
+/** Whether a line's outcome says the work is finished: `(failed …)` and `(abandoned …)` still want the captain. */
+function landed(outcome: string | null): boolean {
+  return outcome !== null && /^(merged|done|landed|closed)\b/.test(outcome);
+}
+
 /**
  * Where a card sits when the board is read as "what do I have to do": a
  * finished item is Done whatever its line still says; anything held, blocked or
@@ -47,7 +52,8 @@ export const CAPTAIN_COLUMNS: Readonly<Record<CaptainColumnId, { title: string; 
  * rest has not started.
  */
 export function captainColumn(card: FleetCard): CaptainColumnId {
-  if (card.backlog?.section === "done" || card.column === "done") return "done";
+  const item = card.backlog;
+  if (item?.section === "done" || landed(item?.outcome ?? null) || card.column === "done") return "done";
   if (isHeld(card) || card.column === "blocked" || card.column === "failed") return "needs-you";
   if (card.column === "working" || card.column === "idle") return "working";
   return "queued";
