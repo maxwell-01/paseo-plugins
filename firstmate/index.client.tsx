@@ -3,9 +3,11 @@ import type { PluginClientContext, PluginWorkspaceCommandContext } from "@getpas
 
 import { FleetSurface, bindSettingsOpener } from "./client/fleet";
 import { AgentPanel, WorkspacePanel } from "./client/panels";
-import { FLEET_SCREEN_ID } from "./client/screen";
+import { FLEET_SCREEN_ID, TOPICS_SCREEN_ID } from "./client/screen";
 import { SettingsScreen } from "./client/settings-screen";
 import { FleetSidebarItem } from "./client/sidebar";
+import { TopicsScreen } from "./client/topics-screen";
+import { TopicsSidebarItem } from "./client/topics-sidebar";
 import { askMate, askMateCommand, type MateCommand } from "./shared/fleet";
 
 type CommandRpc = PluginWorkspaceCommandContext["rpc"];
@@ -27,6 +29,8 @@ async function askFirstMate(rpc: CommandRpc, command: MateCommand, args: string)
 }
 
 export default function contribute(client: PluginClientContext) {
+  client.addScreen({ id: TOPICS_SCREEN_ID, title: "Topics", Component: TopicsScreen });
+  client.addSidebarHeaderItem({ id: TOPICS_SCREEN_ID, title: "Topics", Component: TopicsSidebarItem });
   client.addScreen({ id: FLEET_SCREEN_ID, title: "FirstMate", Component: FleetSurface });
   // The board's gear. A surface is given no way to open a settings screen, so
   // the capability is lent to it from here.
@@ -61,6 +65,16 @@ export default function contribute(client: PluginClientContext) {
     context: "global",
     onSelect({ openScreen }) {
       openScreen({ screenId: FLEET_SCREEN_ID });
+    },
+  });
+  client.addCommandCenterItem({
+    id: "open-topics",
+    title: "Open Topics",
+    icon: "MessagesSquare",
+    keywords: ["firstmate", "topics", "topic", "board", "needs you", "general chat"],
+    context: "global",
+    onSelect({ openScreen }) {
+      openScreen({ screenId: TOPICS_SCREEN_ID });
     },
   });
   client.addCommandCenterItem({

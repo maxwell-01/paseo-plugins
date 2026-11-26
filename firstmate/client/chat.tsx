@@ -31,6 +31,7 @@ import { isSendKey, type WebKeyPressEvent } from "./keys";
 import { MateControls } from "./mate-controls";
 import { useMateSender } from "./mate-send";
 import { Markdown } from "./markdown";
+import { ThreadBubble } from "./thread-bubble";
 import { PermissionCard, usePendingRequests } from "./permission-card";
 import { chatRows, transcriptRows, visibleRows, type TranscriptRow } from "./transcript-rows";
 import { CaptainBubble, IconButton, JumpToEnd, MONOSPACE, Spinner, errorText } from "./ui";
@@ -75,9 +76,10 @@ function groupRows(rows: readonly TranscriptRow[]): Group[] {
  * daemon's say, since only it can see the disk. Asked once for the whole
  * conversation, the most recently mentioned kept past the cap, and again now
  * and then, so a file the first mate writes after naming it becomes a link.
- * Until the answer arrives, and if it fails, the paths are text.
+ * Until the answer arrives, and if it fails, the paths are text. Not asked at all where nothing can open
+ * a file (`wanted`).
  */
-function useHomeFileLinks(rows: readonly TranscriptRow[]) {
+function useHomeFileLinks(rows: readonly TranscriptRow[], wanted: boolean) {
   const find = useRpc(findHomeFiles);
   const candidates = useMemo(
     () => recentCandidates(rows.flatMap((row) => (row.kind === "mate" ? [row.text] : [])), MAX_FILE_CANDIDATES),
@@ -86,7 +88,7 @@ function useHomeFileLinks(rows: readonly TranscriptRow[]) {
   const found = useQuery({
     queryKey: ["firstmate", "files", "find", candidates],
     queryFn: () => find({ paths: candidates }),
-    enabled: candidates.length > 0,
+    enabled: wanted && candidates.length > 0,
     refetchInterval: 30_000,
     // A new mention asks again; the links already drawn stay while it does.
     placeholderData: (previous) => previous,
@@ -103,6 +105,7 @@ export function MateChat({
   threads,
   onChanged,
   onOpenFile,
+  asThread = false,
 }: {
   mate: AgentSummary;
   theme: PluginTheme;
@@ -113,8 +116,13 @@ export function MateChat({
   threads: ReadonlySet<string>;
   /** After a compact or a restart, so the board catches up without waiting for its poll. */
   onChanged: () => void;
-  /** Opens a home file in the Files view, the same way a watch's name does. */
-  onOpenFile: (path: string) => void;
+  /** Opens a home file in the Files view, the same way a watch's name does; null where no Files view is beside the chat. */
+  onOpenFile: ((path: string) => void) | null;
+  /**
+   * Draws the conversation as the Topics screen draws a thread: who said each message over a bubble, and a
+   * line over the composer saying the message is about no topic.
+   */
+  asThread?: boolean;
 }) {
   useChatDraftPersistence(mate.id);
   const toast = useToast();
@@ -126,7 +134,7 @@ export function MateChat({
     [timeline.entries, hiddenKinds, threads],
   );
   const groups = useMemo(() => groupRows(rows), [rows]);
-  const files = useHomeFileLinks(rows);
+  const files = useHomeFileLinks(rows, onOpenFile !== null);
   const follow = useFollowEnd();
   /** What the first mate is waiting on — a question, a permission, a plan. */
   const { pending, respond } = usePendingRequests(mate.id, timeline.agent?.pendingPermissions, follow.pin);
@@ -238,6 +246,7 @@ export function MateChat({
       mate: { alignSelf: "stretch" as const },
       line: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6 },
       lineText: { flex: 1, color: colors.foregroundMuted, fontSize: FONT_SIZE.caption },
+      sendsTo: { color: colors.foregroundMuted, fontSize: FONT_SIZE.caption },
       toolText: { flex: 1, color: colors.foregroundMuted, fontSize: FONT_SIZE.caption, fontFamily: MONOSPACE },
       more: { color: colors.accent, fontSize: FONT_SIZE.caption },
       error: { color: colors.statusDanger, fontSize: FONT_SIZE.small },
@@ -350,9 +359,19 @@ export function MateChat({
     const row = group.row;
     switch (row.kind) {
       case "captain":
-        return <CaptainBubble key={row.key} theme={theme} text={row.text} />;
+        return asThread ? (
+          <ThreadBubble key={row.key} theme={theme} who="You" mine>
+            {row.text}
+          </ThreadBubble>
+        ) : (
+          <CaptainBubble key={row.key} theme={theme} text={row.text} />
+        );
       case "mate":
-        return (
+        return asThread ? (
+          <ThreadBubble key={row.key} theme={theme} who="First mate" mine={false}>
+            <Markdown source={row.text} theme={theme} onOpenLink={openLink} files={files} onOpenFile={onOpenFile} />
+          </ThreadBubble>
+        ) : (
           <View key={row.key} style={styles.mate}>
             <Markdown source={row.text} theme={theme} onOpenLink={openLink} files={files} onOpenFile={onOpenFile} />
           </View>
@@ -410,6 +429,7 @@ export function MateChat({
       */}
       <SafeAreaView style={styles.composerFrame}>
         <View style={styles.composer}>
+          {asThread ? <Text style={styles.sendsTo}>Sends to the first mate. Not about a topic.</Text> : null}
           <View style={styles.quick}>
             <IconButton
               icon="Compass"
