@@ -1012,6 +1012,7 @@ function crewCard(key: string, agent: Partial<AgentSummary> | null, column: Flee
           },
     report: null,
     url: null,
+    lastMessage: null,
   };
 }
 

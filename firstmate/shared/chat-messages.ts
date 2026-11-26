@@ -4,7 +4,17 @@
  * what each of the others is. Pure, and shared, because the chat, the crewmate's transcript and the topic
  * log all have to agree on it.
  */
-import { isWatchMessageId } from "./fleet";
+/**
+ * How a watch message is told from the captain's words in a timeline: the plugin sends it with a
+ * `messageId` starting with this, which the daemon records as the timeline item's `clientMessageId`.
+ * Text alone cannot tell them apart — the captain can paste a watch block — so the chat folds a message
+ * as a watch message only when it carries this id.
+ */
+export const WATCH_MESSAGE_ID_PREFIX = "firstmate-watch-";
+
+export function isWatchMessageId(id: string | null | undefined): boolean {
+  return typeof id === "string" && id.startsWith(WATCH_MESSAGE_ID_PREFIX);
+}
 
 /** What put a message that is not the captain's into the inbox; these are the kinds the chat can hide. */
 export type ChatSource = "cross-daemon" | "agent" | "notice" | "watch";
