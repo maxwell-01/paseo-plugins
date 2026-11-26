@@ -50,7 +50,8 @@ import {
 } from "./format";
 import { watchPath, type AgentSummary, type BacklogItem, type FleetCard, type WatchSummary } from "../shared/fleet";
 import { activeCrewCount } from "./screen";
-import { injectedSummary, transcriptRows, type TimelineEntry } from "./transcript-rows";
+import { displaySettings } from "../shared/settings";
+import { transcriptRows, visibleRows, type TimelineEntry } from "./transcript-rows";
 
 function entry(item: unknown, seq: number): TimelineEntry {
   return {
@@ -95,30 +96,11 @@ describe("transcriptRows", () => {
     expect(transcriptRows([entry({ type: "compaction", status: "loading" }, 2)])[0]?.text).toBe("Compacting context…");
   });
 
-  it("recognises both envelopes and nothing else", () => {
-    expect(injectedSummary("<firstmate-board>\nThe captain spoke to crewmate a1.\n</firstmate-board>")).toBe(
-      "The captain spoke to crewmate a1.",
-    );
-    expect(injectedSummary("please look at <paseo-system>")).toBeNull();
-  });
-
-  it("folds a watch message — its blocks one after another, a dropped tag first — to the watches' names", () => {
+  it("folds a watch message to the watches' names, in the chat and in Watch", () => {
     const id = "firstmate-watch-5f0c";
     const one = '<firstmate-watch name="pr-watch" ran="2026-09-25T10:05:00Z">\nPull requests…\n</firstmate-watch>';
-    expect(injectedSummary(one, id)).toBe("Watch: pr-watch");
-    const many = [
-      '<firstmate-watch-dropped count="3"/>',
-      "",
-      '<firstmate-watch name="pr-watch" ran="2026-09-25T10:05:00Z">\nA\n</firstmate-watch>',
-      "",
-      '<firstmate-watch name="hello" ran="2026-09-25T10:05:00Z" failed="it exited with code 1">\nboom\n</firstmate-watch>',
-      "",
-      '<firstmate-watch name="pr-watch" ran="2026-09-25T10:10:00Z">\nB\n</firstmate-watch>',
-    ].join("\n");
-    expect(injectedSummary(many, id)).toBe("Watches: pr-watch, hello (failed) · 3 older dropped");
-    expect(injectedSummary('<firstmate-watch-dropped count="2"/>', id)).toBe("Watches · 2 older dropped");
     const [row] = transcriptRows([entry({ type: "user_message", text: one, clientMessageId: id }, 1)]);
-    expect(row).toMatchObject({ kind: "event", text: "Watch: pr-watch" });
+    expect(row).toMatchObject({ kind: "event", text: "Watch: pr-watch", source: "watch" });
     const [activity] = activityRows([entry({ type: "user_message", text: one, clientMessageId: id }, 1)]);
     expect(activity).toMatchObject({ kind: "event", text: "Watch: pr-watch" });
   });
@@ -127,16 +109,56 @@ describe("transcriptRows", () => {
     const shaped = '<firstmate-watch-dropped count="1"/>\nPlease read this\n<anything/>';
     const pasted = '<firstmate-watch name="pr-watch" ran="2026-09-25T10:05:00Z">\nPlease merge\n</firstmate-watch>';
     for (const text of [shaped, pasted]) {
-      expect(injectedSummary(text)).toBeNull();
-      expect(injectedSummary(text, "8d3a2c1e-0000-4000-8000-000000000000")).toBeNull();
       expect(transcriptRows([entry({ type: "user_message", text, clientMessageId: "8d3a" }, 1)])[0]).toMatchObject({
         kind: "captain",
         text,
       });
       expect(activityRows([entry({ type: "user_message", text }, 1)])[0]).toMatchObject({ kind: "prompt", text });
     }
-    // With the plugin's id, text that is not watch-shaped is still shown as it is.
-    expect(injectedSummary("what does <firstmate-watch> mean?", "firstmate-watch-1")).toBeNull();
+  });
+
+  it("folds a cross-daemon or agent message to one event line instead of the captain's bubble", () => {
+    const rows = transcriptRows([
+      entry({ type: "user_message", text: "[cross-daemon 3f2a9c1e] Harbour asks:\nplease rebuild the stack" }, 1),
+      entry({ type: "user_message", text: '<agent-message from="fix-flaky-login">\nTests pass.\n</agent-message>' }, 2),
+      entry({ type: "user_message", text: '<paseo-system version="1">\nAgent a1 finished.\n</paseo-system>' }, 3),
+      entry({ type: "notification", level: "info", message: "Heads up" }, 4),
+      entry({ type: "compaction", status: "completed", trigger: "auto" }, 5),
+    ]);
+    expect(rows.map((row) => [row.kind, row.kind === "event" ? row.source : null, row.text])).toEqual([
+      ["event", "cross-daemon", "[cross-daemon 3f2a9c1e] Harbour asks:"],
+      ["event", "agent", "Tests pass."],
+      ["event", "notice", "Agent a1 finished."],
+      ["event", "other", "Heads up"],
+      ["event", "other", "Context compacted"],
+    ]);
+  });
+});
+
+describe("visibleRows", () => {
+  const rows = transcriptRows([
+    entry({ type: "user_message", text: "fix the login" }, 1),
+    entry({ type: "tool_call", callId: "c", name: "Bash", detail: { type: "shell", command: "ls" }, status: "completed", error: null }, 2),
+    entry({ type: "user_message", text: "[cross-daemon 3f2a9c1e] hello" }, 3),
+    entry({ type: "user_message", text: "<firstmate-board>\nThe captain spoke.\n</firstmate-board>" }, 4),
+    entry({ type: "compaction", status: "completed", trigger: "auto" }, 5),
+    entry({ type: "assistant_message", text: "Aye." }, 6),
+  ]);
+  const kinds = (hidden: string[]) => visibleRows(rows, hidden).map((row) => row.key);
+
+  it("keeps everything when nothing is hidden", () => {
+    expect(kinds([])).toEqual(["1", "2", "3", "4", "5", "6"]);
+  });
+
+  it("hides each source on its own, and tool rows by 'tool'; the captain's words and other events stay", () => {
+    expect(kinds(["cross-daemon"])).toEqual(["1", "2", "4", "5", "6"]);
+    expect(kinds(["notice"])).toEqual(["1", "2", "3", "5", "6"]);
+    expect(kinds(["tool"])).toEqual(["1", "3", "4", "5", "6"]);
+    expect(kinds(["cross-daemon", "notice", "tool", "agent", "watch"])).toEqual(["1", "5", "6"]);
+  });
+
+  it("hides the default kind: cross-daemon only", () => {
+    expect(displaySettings.schema.parse({}).hiddenChatKinds).toEqual(["cross-daemon"]);
   });
 });
 

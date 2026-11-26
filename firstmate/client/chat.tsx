@@ -32,7 +32,7 @@ import { MateControls } from "./mate-controls";
 import { useMateSender } from "./mate-send";
 import { Markdown } from "./markdown";
 import { PermissionCard, usePendingRequests } from "./permission-card";
-import { transcriptRows, type TranscriptRow } from "./transcript-rows";
+import { transcriptRows, visibleRows, type TranscriptRow } from "./transcript-rows";
 import { IconButton, JumpToEnd, MONOSPACE, Spinner, errorText } from "./ui";
 import { useKeyboardOverlap } from "./keyboard";
 import { useAgentTimeline } from "./use-timeline";
@@ -99,12 +99,15 @@ export function MateChat({
   mate,
   theme,
   compact,
+  hiddenKinds,
   onChanged,
   onOpenFile,
 }: {
   mate: AgentSummary;
   theme: PluginTheme;
   compact: boolean;
+  /** Kinds of row to leave out — `hiddenChatKinds` in the display settings. */
+  hiddenKinds: readonly string[];
   /** After a compact or a restart, so the board catches up without waiting for its poll. */
   onChanged: () => void;
   /** Opens a home file in the Files view, the same way a watch's name does. */
@@ -115,7 +118,10 @@ export function MateChat({
   /** Shared with the surface's suggestion buttons: one message on its way at a time — see `./mate-send`. */
   const { sending, send, command: sendMateCommand } = useMateSender(mate.id);
   const timeline = useAgentTimeline(mate.id, `${mate.updatedAt}:${mate.pendingPermissions}`);
-  const rows = useMemo(() => transcriptRows(timeline.entries), [timeline.entries]);
+  const rows = useMemo(
+    () => visibleRows(transcriptRows(timeline.entries), hiddenKinds),
+    [timeline.entries, hiddenKinds],
+  );
   const groups = useMemo(() => groupRows(rows), [rows]);
   const files = useHomeFileLinks(rows);
   const follow = useFollowEnd();

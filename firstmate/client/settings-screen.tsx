@@ -16,13 +16,14 @@ import {
   SettingsRow,
   SettingsSection,
   SettingsSelect,
+  SettingsSwitch,
 } from "@getpaseo/plugin/client/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { ScrollView, Text } from "react-native";
 
 import { enableAgentTools, readConfig, releaseMate, writeConfig, type FirstmateConfig } from "../shared/fleet";
-import { POLL_SECONDS, displaySettings } from "../shared/settings";
+import { CHAT_KINDS, POLL_SECONDS, displaySettings } from "../shared/settings";
 import { FLEET_QUERY_KEY, useFleet } from "./fleet";
 import { agentStatusLabel, modelLabel } from "./format";
 import { useModeOptions, useModelOptions, withCurrent } from "./models";
@@ -32,6 +33,14 @@ import { FONT_SIZE, lineHeightFor } from "./type-scale";
 
 const CONFIG_QUERY_KEY = ["firstmate", "config"] as const;
 const PROVIDER_DEFAULT = "";
+
+const CHAT_KIND_LABELS: Record<(typeof CHAT_KINDS)[number], string> = {
+  "cross-daemon": "Cross-daemon messages",
+  agent: "Messages from other agents",
+  notice: "Paseo and board notices",
+  watch: "Watch output",
+  tool: "Tool calls",
+};
 
 export function SettingsScreen({ theme, layout }: PluginSurfaceProps) {
   const read = useRpc(readConfig);
@@ -241,6 +250,28 @@ export function SettingsScreen({ theme, layout }: PluginSurfaceProps) {
               });
             }}
           />
+        </SettingsSection>
+      </SettingsGroup>
+
+      <SettingsGroup title="Hide in the chat">
+        <SettingsSection title="Kinds of message">
+          {CHAT_KINDS.map((kind) => (
+            <SettingsSwitch
+              key={kind}
+              label={CHAT_KIND_LABELS[kind]}
+              value={display.status === "ready" && display.values.hiddenChatKinds.includes(kind)}
+              disabled={display.status !== "ready"}
+              onValueChange={(hide) => {
+                if (display.status !== "ready") return;
+                const others = display.values.hiddenChatKinds.filter((hidden) => hidden !== kind);
+                void display
+                  .save({ ...display.values, hiddenChatKinds: hide ? [...others, kind] : others }, display.revision)
+                  .then((ok) => {
+                    if (!ok) toast.error(display.saveError ?? "The setting was not saved.");
+                  });
+              }}
+            />
+          ))}
         </SettingsSection>
       </SettingsGroup>
     </ScrollView>

@@ -557,6 +557,7 @@ export function FleetSurface({ theme, layout, navigation }: PluginScreenProps) {
       mate={mate}
       theme={theme}
       compact={compact}
+      hiddenKinds={values.hiddenChatKinds}
       onChanged={refresh}
       onOpenFile={openFile}
     />
