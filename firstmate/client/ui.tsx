@@ -80,11 +80,15 @@ export function Segmented<Value extends string>({
   value,
   options,
   onChange,
+  quiet = false,
 }: {
   theme: PluginTheme;
-  value: Value;
+  /** Null selects no segment: the switch is beside a view that is none of its options. */
+  value: Value | null;
   options: ReadonlyArray<{ value: Value; label: string }>;
   onChange: (value: Value) => void;
+  /** Marks the selected segment with a raised surface instead of the accent colour, for a switch between views. */
+  quiet?: boolean;
 }) {
   const colors = theme.colors;
   const styles = useMemo(
@@ -99,11 +103,11 @@ export function Segmented<Value extends string>({
         overflow: "hidden" as const,
       },
       segment: { justifyContent: "center" as const, paddingHorizontal: 12 },
-      selected: { backgroundColor: colors.accent },
-      label: { color: colors.foreground, fontSize: FONT_SIZE.small, fontWeight: "500" as const },
-      labelSelected: { color: colors.accentForeground, fontWeight: "600" as const },
+      selected: { backgroundColor: quiet ? colors.surface2 : colors.accent },
+      label: { color: quiet ? colors.foregroundMuted : colors.foreground, fontSize: FONT_SIZE.small, fontWeight: "500" as const },
+      labelSelected: { color: quiet ? colors.foreground : colors.accentForeground, fontWeight: "600" as const },
     }),
-    [colors],
+    [colors, quiet],
   );
   return (
     <View style={styles.frame} accessibilityRole="tablist">
