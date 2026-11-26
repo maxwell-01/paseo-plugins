@@ -54,20 +54,22 @@ export function captainColumn(card: FleetCard): CaptainColumnId {
 }
 
 /**
- * What the board remembers an open card by: its task id, which a backlog card keeps for as long as the
- * item is on the line, or its agent's id when it has none. Never `card.key`: a backlog card's key holds
- * its line's index, which moves when the first mate edits the file above it.
+ * What the board remembers an open card by: its agent's id, or its task id when it has no agent. Never
+ * `card.key`, whose backlog form holds the line's index, which moves when the first mate edits the file above
+ * it. The agent comes first because two crewmates can share a task label, and a Done line can share its id
+ * with a live crewmate's card.
  */
 export function openId(card: FleetCard): string | null {
-  return card.taskId ?? card.agent?.id ?? null;
+  return card.agent?.id ?? card.taskId;
 }
 
 /**
  * Whether the captain has something to read on a card: the first mate spoke last and its message is newer
- * than the one the captain last had open (`read`, topic id to seq), or the card's agent is waiting on them.
+ * than the one the captain last had open (`read`, topic id to seq). A card with an agent goes by the agent
+ * alone, since it opens the agent's transcript and never the thread that would mark the topic read.
  */
 export function isUnread(card: FleetCard, read: Readonly<Record<string, number>>): boolean {
-  if (card.agent?.requiresAttention === true) return true;
+  if (card.agent !== null) return card.agent.requiresAttention === true;
   const last = card.lastMessage;
   const topicId = card.backlog?.id;
   if (last === null || last.from !== "mate" || topicId === undefined) return false;
@@ -84,9 +86,25 @@ export function readPatch(
   return { ...read, [topicId]: seq };
 }
 
-/** A card's last message as one line: who said it, then the words with their line breaks folded away. */
-export function lastMessageLine(message: TopicMessage): string {
-  return `${message.from === "mate" ? "First mate" : "You"}: ${message.text.replace(/\s+/g, " ").trim()}`;
+/**
+ * A card's last message as one line: who said it, then the words with their line breaks folded away.
+ * `agentTitle` names the card's agent when it is the one that spoke.
+ */
+export function lastMessageLine(message: TopicMessage, agentTitle: string | null = null): string {
+  const who = message.from === "mate" ? "First mate" : message.from === "agent" ? agentTitle ?? "Agent" : "You";
+  return `${who}: ${message.text.replace(/\s+/g, " ").trim()}`;
+}
+
+/** The counts under the screen's title, by the column layout the board is drawn in. */
+export function headerCounts(cards: readonly FleetCard[], layout: "crew" | "captain"): string[] {
+  if (layout === "captain") {
+    const groups = groupCaptainCards(cards);
+    const count = (id: CaptainColumnId) => groups.get(id)?.length ?? 0;
+    return [`${count("needs-you")} needs you`, `${count("working")} working`, `${count("queued")} queued`, `${count("done")} done`];
+  }
+  const groups = groupCards(cards);
+  const count = (id: ColumnId) => groups.get(id)?.length ?? 0;
+  return [`${count("working")} working`, `${count("blocked")} blocked`, `${count("queued")} queued`, `${count("done")} done`];
 }
 
 export function captainTone(theme: PluginTheme, column: CaptainColumnId): string {

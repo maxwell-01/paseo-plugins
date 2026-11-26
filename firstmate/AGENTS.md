@@ -805,27 +805,47 @@ A backlog item is a topic, and a message is filed under it by a tag a compiler c
 **The tag and the filing rule are shared.** A captain message that starts `[topic: <id>]`, and a first-mate
 reply that starts with it (read after the reply's pieces are joined), belong to topic `<id>`; the tag is
 shown off. `splitTopicTag` and `topicTag` in `shared/topics.ts` are the only place that spells the tag.
-The daemon files by `fileTopicMessages` (`server/topic-log.ts`) and the chat by `fileRows` in
+Nothing is filed by inheritance: an untagged reply, a tool call and an injected note stay in the chat,
+because Paseo never records its own notes in the timeline and an untagged reply may be to one. The daemon
+files by `fileTopicMessages` (`server/topic-log.ts`) and the chat by `fileRows` in
 `client/transcript-rows.ts`; a change to what counts as a tagged message changes both, or a message
-shows in the chat and on its card, or in neither. An injected message (`classifyUserMessage`) is never
-filed. The charter (§2) tells the first mate to start every message about an item with the tag; one
-without it stays in the chat.
+shows in the chat and on its card, or in neither. They also cut a reply in the same place: `endsReply`
+names the entries that end one (the kinds the chat draws a row for), and reasoning and plans do not, so a
+reply streamed across them is one message in both. An injected message (`classifyUserMessage`) is never
+filed. A captain message that is only a tag is stored and drawn as `ATTACHMENTS_ONLY`. The charter (§2)
+tells the first mate to start every message about an item with the tag; one without it stays in the chat.
+
+**The chat hides a tagged row only where a thread shows it.** Only a card with a backlog item and no agent
+opens as a thread; `chatRows` leaves the rows of those topics to it and keeps every other tagged row (an item
+with an agent, a mistyped id, an item gone from the board) in the chat with its tag put back. A card with
+an agent opens its transcript, not the thread, so opening it does not mark its topic read.
 
 **Threads are kept on the daemon** (`server/topic-log.ts`, `topics.json` in the plugin's data folder)
 because the chat reads only the last 150 entries of a timeline that holds thousands. A thread built
 from that tail would lose a message within the hour. The log upserts by `seq` and never deletes on a
 re-read, and keeps the newest 200 per topic.
 
-**The `seq` offset.** A message's `seq` is where its timeline entry starts, and a restarted first mate
-has a new timeline that begins at 0 again. The log keeps the old messages across a new first mate id, so
-seqs from two sessions share one thread; compare them only within one session. Unread state
-(`isUnread` in `client/format.ts`) compares a topic's newest seq with the one recorded, so after a
-restart a reply can read as read until its seq passes the old one.
+**The `seq` offset.** A message's `seq` is where its timeline entry starts, and every first mate's
+timeline counts from zero. The log keeps an offset per first-mate id (`seqOffsets`) and adds it before
+storing, so a restarted or replaced first mate's seqs continue above the old ones, and one adopted again
+is read back at its old offset instead of being filed twice. Seqs in a thread therefore only grow, and
+`isUnread` (`client/format.ts`) can compare a topic's newest seq with the recorded one directly.
 
 **Unread state is a settings document** (`topicsRead` in `shared/settings.ts`) because the client writes
 it, the daemon has no use for it, and every device the captain uses should agree on what is read. Opening
-a card, and each newer message while it is open, saves the topic's newest seq through the surface's
+a thread, and each newer message while it is open, saves the topic's newest seq through the surface's
 batched `save`.
+
+**A card's last message** is the newer of two things: the newest message filed under its item, and, for a
+card with no status line, what its agent last said (`from: "agent"`, read with the status line by
+`ReportCache` and never stored in the topic log). A card is unread by a first-mate message past the
+recorded seq, or by its agent's `requiresAttention`; an agent's words never make a dot on their own.
+
+**The reply box has two destinations.** A card with an agent steers it directly; the thread and the
+transcript show a reply box instead of the held card's Answer box (`hideAnswer`), since two boxes sending
+to the same place in different ways would confuse. A backlog item's own agent has no crew label, so a
+steer to it is not relayed to the first mate (`steerCrew` records only labelled crewmates). The screen's
+header counts follow the board's column layout (`headerCounts`).
 
 **A card's action buttons stay untagged.** Their prompts and the Answer box's `<id> — <title>: …` are a
 contract with the charter and bb's FirstMate, so they are not filed. Only the reply box tags.

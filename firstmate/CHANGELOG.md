@@ -23,17 +23,20 @@ Everything you say about one backlog item can now live on its card instead of in
   tag, so both are filed under the card. Sending from a card leaves you where you are, also on a phone.
   What you half-typed is kept until the message is delivered.
 - **The last message and an unread dot on a card.** A card with no status line shows the last message
-  of its thread, and a dot marks a first-mate reply you have not opened yet, or a worker that wants you.
+  of its thread, or what its worker last said, whichever is newer, and a dot marks a first-mate reply you have not opened yet, or a worker that wants you.
   What you have read is shared by every device you use.
 - **Four columns as a setting.** *Needs you*, *Working*, *Queued* and *Done*, as an alternative to the
-  seven columns. The seven stay the default.
+  seven columns, with the counts under the title following. The seven stay the default.
 - **A backlog item's own worker on its card.** An item whose line names a running agent by its full id,
-  `(agent: <id>)`, shows that agent on its card, and Steer and Interrupt reach it.
+  `(agent: <id>)`, shows that agent on its card, and Steer and Interrupt reach it. The first mate is not told about a steer to such a worker, since it
+  never dispatched it.
 - **`(note: …)` on a backlog line** is read as a note on the item, as often as it is written.
 
 ### Changed
 
-- **The chat is for general conversation.** Messages filed under a card are shown there, not in the chat.
+- **The chat is for general conversation.** Messages filed under a card that opens as a thread are shown
+  there, not in the chat. A tagged message about an item with its own worker, or one that is gone, stays
+  in the chat with its tag.
 - **Cross-daemon messages are hidden in the chat by default**, and one that is shown is folded to one
   line. *Settings › FirstMate › Hide in the chat* also hides messages from other agents, Paseo and board
   notices, watch output and tool calls, each on its own.

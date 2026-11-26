@@ -165,6 +165,17 @@ describe("an agent a backlog line names", () => {
     expect(sent).toEqual([]);
   });
 
+  it("is not relayed to the first mate, which never dispatched it; a labelled crewmate is", async () => {
+    const home = await homeWith(`## In flight\n- [ ] fix-flaky-login - Fix the login (agent: ${OWN})\n`);
+    const own = new CaptainSteers();
+    await steerCrew(fakePaseo({}, []), own, OWN, "use pnpm", home);
+    expect(own.has(OWN)).toBe(false);
+
+    const crew = new CaptainSteers();
+    await steerCrew(fakePaseo({ [CREW_LABELS.role]: CREW_LABELS.crewRole }, []), crew, OWN, "use pnpm", home);
+    expect(crew.has(OWN)).toBe(true);
+  });
+
   it("still steers a crewmate with the crew label without reading the backlog", async () => {
     const sent: string[] = [];
     const labels = { [CREW_LABELS.role]: CREW_LABELS.crewRole };

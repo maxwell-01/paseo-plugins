@@ -109,12 +109,14 @@ export async function steerCrew(
   text: string,
   home: string,
 ): Promise<void> {
-  await requireSteerable(paseo, agentId, home);
-  steers.record(agentId, text);
+  const agent = await requireSteerable(paseo, agentId, home);
+  // Only the first mate's own crew is relayed to it; an agent it never dispatched would send it investigating.
+  const relayed = agent.labels[CREW_LABELS.role] === CREW_LABELS.crewRole;
+  if (relayed) steers.record(agentId, text);
   try {
     await sendWithoutInterrupting(paseo, agentId, text);
   } catch (error) {
-    steers.forget(agentId, text);
+    if (relayed) steers.forget(agentId, text);
     throw error;
   }
 }

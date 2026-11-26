@@ -112,12 +112,19 @@ export async function fetchLiveAgent(paseo: PaseoApi, agentId: string): Promise<
  * other item — a tool call, the user's message — ends the search.
  */
 export function closingText(items: readonly TimelineItem[]): string | null {
+  return closingRun(items)?.text ?? null;
+}
+
+/** Where the closing text starts, and the text. */
+function closingRun(items: readonly TimelineItem[]): { start: number; text: string } | null {
   const parts: string[] = [];
+  let start = items.length;
   for (let index = items.length - 1; index >= 0; index -= 1) {
     const item = items[index];
     if (item === undefined) break;
     if (item.type === "assistant_message") {
       parts.unshift(item.text);
+      start = index;
       continue;
     }
     // Plugin rows and notices can land after a turn without being part of it.
@@ -125,17 +132,33 @@ export function closingText(items: readonly TimelineItem[]): string | null {
     break;
   }
   const text = parts.join("");
-  return text.trim() === "" ? null : text;
+  return text.trim() === "" ? null : { start, text };
+}
+
+/** `closingText` as a message from the agent: the seq and time of the entry it starts at. */
+export function closingMessage(
+  entries: readonly { item: TimelineItem; seqStart: number; timestamp: string }[],
+): TopicMessage | null {
+  const run = closingRun(entries.map((entry) => entry.item));
+  const first = run === null ? undefined : entries[run.start];
+  if (run === null || first === undefined) return null;
+  return { seq: first.seqStart, from: "agent", text: run.text, at: first.timestamp };
 }
 
 interface CachedReport {
   updatedAt: string;
   report: CrewReportSummary | null;
+  closing: TopicMessage | null;
 }
 
 /** Each crewmate's last status line, re-read only when the agent has moved. */
 export class ReportCache {
   private readonly reports = new Map<string, CachedReport>();
+
+  /** The agent's closing words as of the last read, for a card with no status line to show. */
+  closingFor(agentId: string): TopicMessage | null {
+    return this.reports.get(agentId)?.closing ?? null;
+  }
 
   async reportFor(paseo: PaseoApi, agent: PaseoAgent): Promise<CrewReportSummary | null> {
     const cached = this.reports.get(agent.id);
@@ -146,8 +169,9 @@ export class ReportCache {
     const page = await paseo.agents
       .ref(agent.id)
       .timeline.refetch({ direction: "tail", limit: REPORT_TAIL, projection: "projected" });
-    const report = parseCrewReport(closingText(page.entries.map((entry) => entry.item)));
-    this.reports.set(agent.id, { updatedAt: agent.updatedAt, report });
+    const closing = closingMessage(page.entries);
+    const report = parseCrewReport(closing?.text ?? null);
+    this.reports.set(agent.id, { updatedAt: agent.updatedAt, report, closing });
     return report;
   }
 
@@ -210,6 +234,14 @@ export function ownAgentIds(backlog: readonly BacklogItem[], takenIds: ReadonlyS
 export interface CrewMember {
   agent: AgentSummary;
   report: CrewReportSummary | null;
+  /** What the agent last said; shown on its card only while the card has no status line. */
+  closing?: TopicMessage | null;
+}
+
+/** The later of two messages by time; either may be absent. */
+function newerMessage(a: TopicMessage | null, b: TopicMessage | null): TopicMessage | null {
+  if (a === null || b === null) return a ?? b;
+  return Date.parse(b.at) > Date.parse(a.at) ? b : a;
 }
 
 /**
@@ -248,7 +280,10 @@ export function buildCards(
       agent: member.agent,
       report: member.report,
       url: (member.report === null ? null : reportUrl(member.report.text)) ?? item?.url ?? null,
-      lastMessage: (item === null ? null : latest.get(item.id)) ?? null,
+      lastMessage: newerMessage(
+        (item === null ? null : latest.get(item.id)) ?? null,
+        member.report === null ? member.closing ?? null : null,
+      ),
     });
   }
 
@@ -371,6 +406,7 @@ export async function loadFleet(
         console.error(`[firstmate] could not read the status line of ${agent.id}:`, error);
         return null;
       }),
+      closing: reports.closingFor(agent.id),
     })),
   );
 

@@ -113,7 +113,7 @@ export function CrewmateView({
     card === null ? (
       <Text style={styles.gone}>This worker is no longer on the board — it was ended or archived.</Text>
     ) : (
-      <CrewCard card={card} theme={theme} compact={compact} opener={null} onChanged={onChanged} toMate={toMate} startExpanded={!compact} />
+      <CrewCard card={card} theme={theme} compact={compact} opener={null} onChanged={onChanged} toMate={toMate} hideAnswer startExpanded={!compact} />
     );
 
   return (

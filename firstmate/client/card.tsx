@@ -89,6 +89,7 @@ export function CrewCard({
   onChanged,
   toMate,
   unread = false,
+  hideAnswer = false,
   startExpanded = false,
 }: {
   card: FleetCard;
@@ -102,6 +103,8 @@ export function CrewCard({
   toMate: MateAsk | null;
   /** Draws a dot beside the title: something on the card is waiting to be read. */
   unread?: boolean;
+  /** Leaves out the Answer box of a held card, where a reply box under the thread takes its place. */
+  hideAnswer?: boolean;
   startExpanded?: boolean;
 }) {
   const steer = useRpc(steerCrew);
@@ -199,7 +202,7 @@ export function CrewCard({
 
   const backlog = card.backlog;
   const actions = toMate === null ? [] : cardActions(card);
-  const answers = toMate !== null && isHeld(card);
+  const answers = toMate !== null && !hideAnswer && isHeld(card);
   const sending = toMate?.sending ?? false;
   const facts = [
     card.project,
@@ -232,7 +235,7 @@ export function CrewCard({
         )}
         {card.report !== null || card.lastMessage === null ? null : (
           <Text style={styles.report} numberOfLines={2}>
-            {lastMessageLine(card.lastMessage)}
+            {lastMessageLine(card.lastMessage, agent?.title ?? null)}
           </Text>
         )}
         {backlog?.hold === null || backlog?.hold === undefined ? null : (
